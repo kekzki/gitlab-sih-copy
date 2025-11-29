@@ -1,0 +1,54 @@
+.classification-card {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 24px;
+}
+
+.classification-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin: 0 0 20px 0;
+}
+
+.classification-hierarchy {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.classification-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  background-color: #f9fafb;
+  border-radius: 8px;
+  transition: background-color 0.2s ease;
+}
+
+.classification-row:hover {
+  background-color: #f3f4f6;
+}
+
+.classification-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #6b7280;
+  min-width: 80px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 12px;
+}
+
+.classification-arrow {
+  color: #2d6a6a;
+  flex-shrink: 0;
+}
+
+.classification-value {
+  font-size: 15px;
+  color: #1a1a1a;
+  font-weight: 500;
+}

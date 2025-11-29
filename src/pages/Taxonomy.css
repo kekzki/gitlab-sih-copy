@@ -1,0 +1,22 @@
+.taxonomy-page {
+  min-height: calc(100vh - 76px);
+  background-color: white;
+  padding: 40px;
+}
+
+.taxonomy-content {
+  display: flex;
+  gap: 40px;
+  margin-top: 40px;
+}
+
+@media (max-width: 1024px) {
+  .taxonomy-page {
+    padding: 20px;
+  }
+
+  .taxonomy-content {
+    flex-direction: column;
+    gap: 20px;
+  }
+}
