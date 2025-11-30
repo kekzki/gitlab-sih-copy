@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { Upload, FileText, Activity, Dna, ArrowRight, ExternalLink } from 'lucide-react';
 // Import local images or use placeholders
 // Note: Ensure you have these images or replace with valid URLs
-import otolithBg from '/Users/ritesh/sih_project/Paradoxx6/src/assets/pexels-francesco-ungaro-3168998.jpg'; // Reusing your turtle or any ocean image
-import ednaBg from '/Users/ritesh/sih_project/Paradoxx6/src/assets/pexels-francesco-ungaro-3168998.jpg'; 
+import otolithBg from '../assets/Homepageturtle.jpg'; // Reusing your turtle or any ocean image
+import ednaBg from '../assets/Homepageturtle.jpg'; 
 
 const AIAnalysisLab = () => {
   const [mode, setMode] = useState('otolith'); // 'otolith' or 'edna'
