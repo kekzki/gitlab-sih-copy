@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import Navbar from '../components/Navbar';
+import { Link } from 'react-router-dom';
 import SearchTabs from '../components/SearchTabs';
 import SearchResultCard from '../components/SearchResultCard';
 import AIAnalysisLab from '../components/AIAnalysisLab';
@@ -16,9 +17,9 @@ const SearchPage = () => {
 
   // Dummy data for Explore Tab
   const dummyResults = [
-    { type: 'fish', commonName: 'Atlantic Cod', speciesId: '#8821', date: 'Oct 24, 2024' },
-    { type: 'ecosystem', parameter: 'Salinity', location: 'Bay of Bengal', source: 'NOAA', date: 'Oct 22, 2024' },
-    { type: 'fish', commonName: 'Mackerel', speciesId: '#9901', date: 'Oct 20, 2024' },
+    { id: '8821', type: 'fish', commonName: 'Atlantic Cod', speciesId: '#8821', date: 'Oct 24, 2024' },
+    { id: 'eco-salinity-bob', type: 'ecosystem', parameter: 'Salinity', location: 'Bay of Bengal', source: 'NOAA', date: 'Oct 22, 2024' },
+    { id: '9901', type: 'fish', commonName: 'Mackerel', speciesId: '#9901', date: 'Oct 20, 2024' },
   ];
 
   return (
@@ -53,12 +54,13 @@ const SearchPage = () => {
             
             <h3 style={{ marginBottom: '1rem', color: '#2d6a6a' }}>Recent Records</h3>
             <div className="results-grid">
-              {dummyResults.map((item, index) => (
-                <SearchResultCard 
-                  key={index} 
-                  type={item.type} 
-                  data={item} 
-                />
+              {dummyResults.map((item) => (
+                <Link to={`/taxonomy/${item.id}`} key={item.id} className="search-result-link">
+                  <SearchResultCard 
+                    type={item.type} 
+                    data={item} 
+                  />
+                </Link>
               ))}
             </div>
           </div>

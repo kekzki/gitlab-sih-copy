@@ -1,111 +1,151 @@
-import React from 'react';
-import { ArrowUp, ArrowDown, Minus, ChevronDown, Download } from 'lucide-react';
+import React, { useState } from 'react';
+import { 
+  LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, ComposedChart,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer 
+} from 'recharts';
 
-const KpiCard = ({ title, value, badgeText, badgeColor, trend }) => {
-  const trendIcons = {
-    up: <ArrowUp size={16} className="text-green-500" />,
-    down: <ArrowDown size={16} className="text-red-500" />,
-    flat: <Minus size={16} className="text-blue-500" />,
-  };
-
-  const badgeColors = {
-    green: 'bg-green-100 text-green-800',
-    blue: 'bg-blue-100 text-blue-800',
-    yellow: 'bg-yellow-100 text-yellow-800',
-  };
-
-  return (
-    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5">
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold text-slate-500">{title}</p>
-        {trendIcons[trend]}
-      </div>
-      <div className="flex items-baseline gap-2 mt-2">
-        <p className="text-3xl font-bold text-emerald-950">{value}</p>
-        <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${badgeColors[badgeColor]}`}>
-          {badgeText}
-        </span>
-      </div>
-    </div>
-  );
+// 1. EXACT PARAMETER LIST FROM YOUR PROMPT
+const CATEGORIES = {
+  'Biochemical': ['pH Level', 'Dissolved Oxygen', 'CO2 Concentration', 'Total Alkalinity'],
+  'Ecological': ['Phytoplankton', 'Zooplankton', 'Chlorophyll-a', 'P:Z Ratio', 'Phyto vs Nutrients'],
+  'Human Impact': ['Pollution Index', 'Plastic Debris', 'Oil Contamination', 'Heavy Metals', 'Pesticide Residues'],
+  'Physical Oceanography': ['SST', 'Salinity', 'Water Depth', 'Current Velocity', 'Wave Height', 'Thermocline Depth', 'Upwelling Intensity', 'Monsoon Intensity'],
+  'Climate Change': ['SST Anomaly', 'El Nino Index', 'Ammonium'],
+  'Nutrient Dynamics': ['Nitrate', 'Phosphate', 'Silicate', 'N:P Ratio']
 };
 
-const EnvHealthCharts = () => {
+const EnvHealthCharts = ({ filters }) => {
+  const [selectedParams, setSelectedParams] = useState(['pH Level', 'SST']); // Defaults
+
+  // Mock Data Generators (Replace with API data)
+  const timeData = [
+    { date: 'Jan', val1: 24, val2: 8.1 }, { date: 'Feb', val1: 25, val2: 8.0 },
+    { date: 'Mar', val1: 27, val2: 7.9 }, { date: 'Apr', val1: 29, val2: 7.8 },
+    { date: 'May', val1: 31, val2: 7.8 }, { date: 'Jun', val1: 28, val2: 7.9 },
+  ];
+
+  const contaminantData = [
+    { name: 'Plastics', value: 400, color: '#ef4444' },
+    { name: 'Oil', value: 150, color: '#1e293b' },
+    { name: 'Heavy Metals', value: 100, color: '#64748b' },
+    { name: 'Pesticides', value: 50, color: '#f59e0b' }
+  ];
+
+  const habData = [
+    { year: '2020', count: 12 }, { year: '2021', count: 19 },
+    { year: '2022', count: 8 }, { year: '2023', count: 24 }
+  ];
+
+  const diversityData = [
+    { year: '2020', richness: 120, shannon: 2.1 },
+    { year: '2021', richness: 135, shannon: 2.3 },
+    { year: '2022', richness: 128, shannon: 2.2 },
+    { year: '2023', richness: 145, shannon: 2.4 }
+  ];
+
+  const toggleParam = (param) => {
+    if (selectedParams.includes(param)) setSelectedParams(selectedParams.filter(p => p !== param));
+    else if (selectedParams.length < 2) setSelectedParams([...selectedParams, param]); // Limit 2 for demo
+  };
+
   return (
-    <div className="space-y-6">
-      {/* Row 1: KPI Metrics */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <KpiCard title="Dissolved Oxygen" value="6.4 mg/L" badgeText="Optimal" badgeColor="green" trend="up" />
-        <KpiCard title="Ocean Acidity" value="8.1 pH" badgeText="Stable" badgeColor="blue" trend="flat" />
-        <KpiCard title="Water Clarity" value="4.2 NTU" badgeText="Warning" badgeColor="yellow" trend="up" />
-        <KpiCard title="Algal Biomass" value="1.2 mg/m³" badgeText="Optimal" badgeColor="green" trend="down" />
+    <div className="space-y-8">
+      
+      {/* 1. PARAMETER TIME-SERIES (The Checklist) */}
+      <div className="flex flex-col lg:flex-row gap-6 h-[700px]">
+        {/* Left: Category Checklist */}
+        <div className="w-full lg:w-1/4 bg-white p-6 rounded-3xl border border-slate-200 overflow-y-auto scrollbar-hide shadow-sm">
+          <h3 className="font-bold text-slate-900 mb-4 sticky top-0 bg-white pb-2 border-b border-slate-100">
+            Parameter Checklist
+          </h3>
+          <div className="space-y-6">
+            {Object.entries(CATEGORIES).map(([cat, items]) => (
+              <div key={cat}>
+                <h4 className="text-[10px] font-bold text-slate-400 uppercase mb-2 bg-slate-50 p-1 rounded w-fit">{cat}</h4>
+                <div className="space-y-1">
+                  {items.map(item => (
+                    <label key={item} className="flex items-center gap-3 cursor-pointer p-1.5 hover:bg-slate-50 rounded transition-colors">
+                      <div className={`w-4 h-4 rounded border flex items-center justify-center ${selectedParams.includes(item) ? 'bg-cyan-500 border-cyan-500' : 'border-slate-300'}`}>
+                        {selectedParams.includes(item) && <span className="text-white text-[10px] font-bold">✓</span>}
+                      </div>
+                      <input type="checkbox" className="hidden" onChange={() => toggleParam(item)} />
+                      <span className={`text-xs font-semibold ${selectedParams.includes(item) ? 'text-cyan-700' : 'text-slate-600'}`}>{item}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Right: The Graph */}
+        <div className="w-full lg:w-3/4 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col">
+          <h3 className="text-xl font-bold text-slate-900 mb-1">Parameter Time-Series</h3>
+          <p className="text-xs text-slate-500 mb-6">Comparing: {selectedParams.join(' vs ')} in {filters.location}</p>
+          <div className="flex-1 min-h-[400px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={timeData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="date" />
+                <YAxis yAxisId="left" />
+                <YAxis yAxisId="right" orientation="right" />
+                <Tooltip />
+                <Legend />
+                <Line yAxisId="left" type="monotone" dataKey="val1" stroke="#06b6d4" strokeWidth={3} name={selectedParams[0] || 'Param 1'} />
+                <Line yAxisId="right" type="monotone" dataKey="val2" stroke="#10b981" strokeWidth={3} name={selectedParams[1] || 'Param 2'} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
       </div>
 
-      {/* Row 2: Main Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left: Trend Chart */}
-        <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-bold text-emerald-950">Water Quality Composite Index</h3>
-            <button className="flex items-center gap-1 text-sm font-medium text-slate-600 bg-slate-50 border border-slate-200 px-3 py-1 rounded-lg hover:bg-slate-100">
-              Last 30 Days <ChevronDown size={16} />
-            </button>
-          </div>
-          <div className="h-80 w-full relative">
-            {/* Mock Recharts Composed Chart */}
-            <svg width="100%" height="100%" viewBox="0 0 500 200" preserveAspectRatio="none">
-              {/* Grid lines */}
-              {[...Array(5)].map((_, i) => <line key={i} x1="0" y1={i * 40} x2="500" y2={i * 40} stroke="#e2e8f0" strokeWidth="0.5" />)}
-              
-              {/* Area for Health Score */}
-              <defs>
-                <linearGradient id="healthGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                </linearGradient>
-              </defs>
-              <path d="M 0 100 L 50 90 L 100 110 L 150 80 L 200 70 L 250 90 L 300 80 L 350 60 L 400 70 L 450 50 L 500 60 L 500 200 L 0 200 Z" fill="url(#healthGradient)" />
-              
-              {/* Line for Dissolved Oxygen */}
-              <path d="M 0 80 L 50 70 L 100 90 L 150 60 L 200 50 L 250 70 L 300 60 L 350 40 L 400 50 L 450 30 L 500 40" fill="none" stroke="#3b82f6" strokeWidth="2" />
-              
-              {/* Dashed Line for Turbidity */}
-              <path d="M 0 150 L 50 140 L 100 160 L 150 130 L 200 120 L 250 140 L 300 130 L 350 110 L 400 120 L 450 100 L 500 110" fill="none" stroke="#a16207" strokeWidth="2" strokeDasharray="4 4" />
-            </svg>
-          </div>
+      {/* 2. SPECIFIC ENV HEALTH CHARTS */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        
+        {/* Contaminant Composition */}
+        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm h-80">
+          <h4 className="font-bold text-slate-900 mb-4">Contaminant Composition</h4>
+          <ResponsiveContainer width="100%" height="85%">
+            <PieChart>
+              <Pie data={contaminantData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={5} dataKey="value">
+                {contaminantData.map((entry, index) => <Cell key={index} fill={entry.color} />)}
+              </Pie>
+              <Tooltip />
+              <Legend verticalAlign="bottom" height={36}/>
+            </PieChart>
+          </ResponsiveContainer>
         </div>
 
-        {/* Right: Pollution Breakdown */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex flex-col">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-bold text-emerald-950">Contaminant Composition</h3>
-            <button className="text-slate-400 hover:text-slate-800">
-              <Download size={18} />
-            </button>
-          </div>
-          <div className="flex-grow flex flex-col items-center justify-center">
-            {/* Mock Recharts Donut Chart */}
-            <div className="relative w-48 h-48">
-              <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
-                <circle cx="18" cy="18" r="15.915" fill="none" stroke="#ef4444" strokeWidth="4" strokeDasharray="40, 100" />
-                <circle cx="18" cy="18" r="15.915" fill="none" stroke="#475569" strokeWidth="4" strokeDasharray="15, 100" strokeDashoffset="-40" />
-                <circle cx="18" cy="18" r="15.915" fill="none" stroke="#052e16" strokeWidth="4" strokeDasharray="20, 100" strokeDashoffset="-55" />
-                <circle cx="18" cy="18" r="15.915" fill="none" stroke="#10b981" strokeWidth="4" strokeDasharray="25, 100" strokeDashoffset="-75" />
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                <span className="text-xs text-slate-500">Total Load</span>
-                <span className="text-2xl font-bold text-emerald-950">450 Tons</span>
-              </div>
-            </div>
-          </div>
-          {/* Legend */}
-          <div className="mt-6 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-            <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-red-500"></div><span>Plastics: 40%</span></div>
-            <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-slate-600"></div><span>Heavy Metals: 15%</span></div>
-            <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-emerald-950"></div><span>Hydrocarbons: 20%</span></div>
-            <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-emerald-500"></div><span>Nutrients: 25%</span></div>
-          </div>
+        {/* HAB Frequency */}
+        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm h-80">
+          <h4 className="font-bold text-slate-900 mb-4">HAB Frequency (Count/Year)</h4>
+          <ResponsiveContainer width="100%" height="85%">
+            <BarChart data={habData}>
+              <CartesianGrid vertical={false} strokeDasharray="3 3" />
+              <XAxis dataKey="year" />
+              <YAxis />
+              <Tooltip />
+              <Bar dataKey="count" fill="#f43f5e" radius={[4, 4, 0, 0]} name="Bloom Events" />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
+
+        {/* Richness vs Diversity */}
+        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm h-80">
+          <h4 className="font-bold text-slate-900 mb-4">Richness (S) vs Diversity (H')</h4>
+          <ResponsiveContainer width="100%" height="85%">
+            <ComposedChart data={diversityData}>
+              <CartesianGrid vertical={false} />
+              <XAxis dataKey="year" />
+              <YAxis yAxisId="left" />
+              <YAxis yAxisId="right" orientation="right" domain={[0, 5]} />
+              <Tooltip />
+              <Bar yAxisId="left" dataKey="richness" fill="#0ea5e9" barSize={20} radius={[4, 4, 0, 0]} name="Richness (S)" />
+              <Line yAxisId="right" type="monotone" dataKey="shannon" stroke="#f59e0b" strokeWidth={2} name="Shannon (H')" />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+
       </div>
     </div>
   );
