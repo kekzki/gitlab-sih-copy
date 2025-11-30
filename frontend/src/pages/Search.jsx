@@ -6,7 +6,7 @@ import AIAnalysisLab from '../components/AIAnalysisLab';
 import { Sparkles, Search } from 'lucide-react';
 
 // Images
-import oceanBg from '/Users/ritesh/sih_project/Paradoxx6/src/assets/pexels-francesco-ungaro-3168998.jpg'; // Or your main explore bg
+import oceanBg from '../assets/Homepageturtle.jpg'; // Or your main explore bg
 import './Search.css'; 
 
 const SearchPage = () => {
