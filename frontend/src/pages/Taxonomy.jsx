@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import TaxonomySearch from '../components/TaxonomySearch';
 import FilterSidebar from '../components/FilterSidebar';
 import SpeciesGrid from '../components/SpeciesGrid';
 import './Taxonomy.css';
 
 const Taxonomy = () => {
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [filters, setFilters] = useState({});
 
@@ -70,7 +72,7 @@ const Taxonomy = () => {
 
   const handleSpeciesClick = (species) => {
     // Navigate to species detail page
-    window.location.href = `/taxonomy/${species.id}`;
+    navigate(`/taxonomy/${species.id}`);
   };
 
   // Filter species based on search and filters
