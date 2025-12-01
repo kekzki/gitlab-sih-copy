@@ -1,16 +1,24 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
-import { Upload, LogIn, Database, HardDrive, Fish, Globe, TrendingUp } from 'lucide-react';
-import StatsCard from '../components/StatsCard';
-import './Home.css';
+import React from "react";
+import { Link } from "react-router-dom";
+import {
+  Upload,
+  LogIn,
+  Database,
+  HardDrive,
+  Fish,
+  Globe,
+  TrendingUp,
+} from "lucide-react";
+import StatsCard from "../components/StatsCard";
+import "./Home.css";
 
 const Home = () => {
   const statsData = [
-    { icon: Database, value: '1,000+', label: 'Total Datasets Unified' },
-    { icon: HardDrive, value: '20+ TB', label: 'Terabytes of Data' },
-    { icon: Fish, value: '80,000+', label: 'Identified Species' },
-    { icon: Globe, value: '10+', label: 'Repositories Integrated' },
-    { icon: TrendingUp, value: '68/100', label: 'Ecosystem Health Index' }
+    { icon: Database, value: "1,000+", label: "Total Datasets Unified" },
+    { icon: HardDrive, value: "20+ TB", label: "Terabytes of Data" },
+    { icon: Fish, value: "80,000+", label: "Identified Species" },
+    { icon: Globe, value: "10+", label: "Repositories Integrated" },
+    { icon: TrendingUp, value: "68/100", label: "Ecosystem Health Index" },
   ];
 
   return (
