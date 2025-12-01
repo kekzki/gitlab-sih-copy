@@ -1,30 +1,64 @@
 import React, { useState } from "react";
 import { X, ChevronDown, Check } from "lucide-react";
 import { supabase } from "../supabaseClient";
+import { useNavigate } from "react-router-dom";
 
 const Login = ({ onClose }) => {
+  const navigate = useNavigate();
+
   // --- STATE MANAGEMENT ---
   const [activeTab, setActiveTab] = useState("signin");
   const [loading, setLoading] = useState(false);
-
-  // Form states
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
-  const [role, setRole] = useState("General User"); // Default role
+  const [role, setRole] = useState("General User");
   const [confirmPassword, setConfirmPassword] = useState("");
-
-  // Custom Dropdown State
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const roles = ["General User", "Researcher", "Administrator"];
 
-  // --- STYLING CONSTANTS (Based on rgb(45,106,106)) ---
+  // --- STYLING CONSTANTS ---
   const tealColor = "bg-[rgb(45,106,106)] hover:bg-[rgb(35,96,96)]";
   const tealText = "text-[rgb(45,106,106)]";
   const focusStyle =
     "focus:border-[rgb(45,106,106)] focus:ring-1 focus:ring-[rgb(45,106,106)]";
   const inputBase = `w-full px-4 py-2.5 text-sm rounded-md bg-gray-50 border border-gray-200 outline-none transition-all ${focusStyle}`;
+
+  // --- ROLE REDIRECTION LOGIC ---
+  const handleRedirect = async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return navigate("/");
+
+    // Query the 'users' table using the UUID to get the role
+    const { data: userData, error: roleError } = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
+    if (roleError || !userData) {
+      console.error("Could not fetch user role:", roleError);
+      return navigate("/");
+    }
+
+    const userRole = userData.role;
+    let redirectPath = "/";
+
+    if (userRole === "Researcher") {
+      redirectPath = "/researcher-dashboard";
+    } else if (userRole === "Administrator") {
+      redirectPath = "/admin-dashboard";
+    } else if (userRole === "General User") {
+      redirectPath = "/user-dashboard";
+    }
+
+    onClose();
+    navigate(redirectPath);
+  };
 
   // --- AUTHENTICATION LOGIC ---
   const handleSubmit = async (e) => {
@@ -45,18 +79,15 @@ const Login = ({ onClose }) => {
         options: {
           data: {
             full_name: fullName,
-            phone_number: phone,
+            phone_number: phone, // Note: your DB column is 'phone', registration uses 'phone_number'
             user_role: role,
           },
         },
       });
 
       if (error) {
-        // Case 1: Explicit error (e.g., password too short)
         console.error("[SUPABASE ERROR] Registration failed:", error);
         setLoading(false);
-
-        // Check for specific error message that indicates duplicate email
         if (error.message.includes("already registered")) {
           alert(
             "Error: This email is already registered. Please sign in or use a different email."
@@ -66,15 +97,11 @@ const Login = ({ onClose }) => {
         }
         return;
       } else if (data.user) {
-        // Case 2: SUCCESS PATH - A new user was created.
         alert(
           "Registration complete! Please check your email for a confirmation link."
         );
-        onClose(); // Close the modal on successful new registration
+        onClose();
       } else {
-        // Case 3: AMBIGUOUS ERROR / SILENT BLOCK
-        // data.user is NULL and error is NULL. This is the only remaining scenario.
-        // We MUST assume the email already exists for security.
         console.log(
           "[DEBUG] Supabase returned silent block. Email already exists."
         );
@@ -82,7 +109,7 @@ const Login = ({ onClose }) => {
           "Error: This email is already registered. Please sign in or use a different email."
         );
         setLoading(false);
-        return; // KEEP MODAL OPEN for user to switch to SIGN IN tab
+        return;
       }
     } else {
       // --- SUPABASE SIGN IN LOGIC ---
@@ -91,27 +118,28 @@ const Login = ({ onClose }) => {
         password,
       });
 
+      setLoading(false);
+
       if (error) {
         console.error("[SUPABASE ERROR] Login failed:", error);
         alert("Login Error: " + error.message);
       } else {
-        alert("Login successful!");
-        onClose();
+        // SUCCESS PATH: Fetch role and redirect
+        await handleRedirect();
       }
     }
-    setLoading(false);
   };
 
-  // --- RENDER FUNCTION ---
+  // --- RENDER FUNCTION (FIXED Z-INDEX) ---
   return (
-    // OVERLAY: Full screen, dark background
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm p-4">
-      {/* POPUP CONTAINER: Adjusted width for better look and rounded corners */}
-      <div className="relative w-full max-w-[450px] bg-white rounded-lg shadow-2xl overflow-hidden">
+    // OVERLAY: Full screen, dark background. Use z-[100] for certainty.
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm p-4">
+      {/* POPUP CONTAINER: Adjusted width and added z-[101] to ensure it stacks above the backdrop. */}
+      <div className="relative w-full max-w-[450px] bg-white rounded-lg shadow-2xl overflow-hidden z-[101]">
         {/* CLOSE BUTTON (X) */}
         <button
           onClick={onClose}
-          className="absolute top-5 right-5 text-gray-400 hover:text-gray-600 transition-colors"
+          className="absolute top-5 right-5 text-gray-400 hover:text-gray-600 transition-colors z-[102]"
         >
           <X size={24} />
         </button>
@@ -197,7 +225,7 @@ const Login = ({ onClose }) => {
 
                     {/* Dropdown Menu */}
                     {isDropdownOpen && (
-                      <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-10 max-h-40 overflow-y-auto">
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-20 max-h-40 overflow-y-auto">
                         {roles.map((r) => (
                           <button
                             key={r}
