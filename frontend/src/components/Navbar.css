@@ -1,80 +1,85 @@
 .navbar {
-    padding: 20px 40px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    background-color: #f8f9fa;
-    border-bottom: 1px solid #e9ecef;
+  padding: 20px 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
+
+  position: fixed;
+  top: 0;
+  width: 100%;
+  z-index: 50;
 }
 
 .navbar-logo {
-    display: flex;
-    align-items: center;
-    text-decoration: none;
-    gap: 12px;
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  gap: 12px;
 }
 
 .logo-icon {
-    width: 36px;
-    height: 36px;
-    background: linear-gradient(135deg, #2d6a6a 0%, #1e4a4a 100%);
-    color: white;
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 600;
-    font-size: 18px;
+  width: 36px;
+  height: 36px;
+  background: linear-gradient(135deg, #2d6a6a 0%, #1e4a4a 100%);
+  color: white;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 18px;
 }
 
 .logo-text {
-    font-size: 20px;
-    font-weight: 600;
-    color: #1a1a1a;
+  font-size: 20px;
+  font-weight: 600;
+  color: #1a1a1a;
 }
 
 .navbar-links {
-    display: flex;
-    gap: 8px;
-    align-items: center;
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 
 .nav-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 16px;
-    text-decoration: none;
-    color: #5a6c7d;
-    font-size: 15px;
-    font-weight: 500;
-    border-radius: 6px;
-    transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  text-decoration: none;
+  color: #5a6c7d;
+  font-size: 15px;
+  font-weight: 500;
+  border-radius: 6px;
+  transition: all 0.2s ease;
 }
 
 .nav-item:hover {
-    color: #2d6a6a;
-    background-color: #e9f2f2;
+  color: #2d6a6a;
+  background-color: #e9f2f2;
 }
 
 .nav-item.active {
-    color: #2d6a6a;
-    background-color: #d4e9e9;
+  color: #2d6a6a;
+  background-color: #d4e9e9;
 }
 
 .nav-text {
-    white-space: nowrap;
+  white-space: nowrap;
 }
 
 /* Optional: Add a special style for the last item (Sign Up) */
 .nav-item:last-child {
-    background-color: #2d6a6a;
-    color: white;
-    padding: 10px 24px;
-    border-radius: 8px;
+  background-color: #2d6a6a;
+  color: white;
+  padding: 10px 24px;
+  border-radius: 8px;
 }
 
 .nav-item:last-child:hover {
-    background-color: #1e4a4a;
-    color: white;
+  background-color: #1e4a4a;
+  color: white;
 }
