@@ -1,12 +1,15 @@
 import React from "react";
-import { Link, useLocation } from "react-router-dom";
-import { Home, Compass, Search, BarChart, Eye } from "lucide-react";
-import AuthStatus from "./AuthStatus"; // <-- NEW IMPORT
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Home, Compass, Search, BarChart, Eye, Upload } from "lucide-react";
+import AuthStatus from "./AuthStatus";
+import { useAuth } from "../context/AuthContext";
 
 import "./Navbar.css";
 
 const Navbar = () => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { isLoggedIn, userRole } = useAuth();
 
   const navItems = [
     { name: "Home", path: "/", icon: Home },
@@ -14,8 +17,11 @@ const Navbar = () => {
     { name: "Search", path: "/search", icon: Search },
     { name: "Visualisation", path: "/visualization", icon: Eye },
     { name: "Analysis", path: "/analysis", icon: BarChart },
-    // Removed static Login item
   ];
+
+  // Check if user is Researcher or Administrator
+  const isResearcherOrAdmin =
+    isLoggedIn && (userRole === "Researcher" || userRole === "Administrator");
 
   return (
     <nav className="navbar">
@@ -40,7 +46,19 @@ const Navbar = () => {
           );
         })}
 
-        {/* --- AUTHENTICATION STATUS (Replaces Login link) --- */}
+        {/* Data Upload Button - Only visible to Researcher and Administrator */}
+        {isResearcherOrAdmin && (
+          <button
+            onClick={() => navigate("/upload-dataset")}
+            className="nav-item"
+            title="Upload Data"
+          >
+            <Upload size={16} />
+            <span className="nav-text">Data Upload</span>
+          </button>
+        )}
+
+        {/* --- AUTHENTICATION STATUS --- */}
         <AuthStatus />
       </div>
     </nav>
