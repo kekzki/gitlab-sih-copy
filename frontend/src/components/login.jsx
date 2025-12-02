@@ -25,39 +25,9 @@ const Login = ({ onClose }) => {
     "focus:border-[rgb(45,106,106)] focus:ring-1 focus:ring-[rgb(45,106,106)]";
   const inputBase = `w-full px-4 py-2.5 text-sm rounded-md bg-gray-50 border border-gray-200 outline-none transition-all ${focusStyle}`;
 
-  // --- ROLE REDIRECTION LOGIC ---
-  const handleRedirect = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) return navigate("/");
-
-    // Query the 'users' table using the UUID to get the role
-    const { data: userData, error: roleError } = await supabase
-      .from("users")
-      .select("role")
-      .eq("id", user.id)
-      .single();
-
-    if (roleError || !userData) {
-      console.error("Could not fetch user role:", roleError);
-      return navigate("/");
-    }
-
-    const userRole = userData.role;
-    let redirectPath = "/";
-
-    if (userRole === "Researcher") {
-      redirectPath = "/researcher-dashboard";
-    } else if (userRole === "Administrator") {
-      redirectPath = "/admin-dashboard";
-    } else if (userRole === "General User") {
-      redirectPath = "/user-dashboard";
-    }
-
+  // --- CLOSE MODAL AFTER SUCCESS ---
+  const handleLoginSuccess = () => {
     onClose();
-    navigate(redirectPath);
   };
 
   // --- AUTHENTICATION LOGIC ---
@@ -79,7 +49,7 @@ const Login = ({ onClose }) => {
         options: {
           data: {
             full_name: fullName,
-            phone_number: phone, // Note: your DB column is 'phone', registration uses 'phone_number'
+            phone_number: phone,
             user_role: role,
           },
         },
@@ -124,8 +94,8 @@ const Login = ({ onClose }) => {
         console.error("[SUPABASE ERROR] Login failed:", error);
         alert("Login Error: " + error.message);
       } else {
-        // SUCCESS PATH: Fetch role and redirect
-        await handleRedirect();
+        // SUCCESS PATH: Just close the modal
+        handleLoginSuccess();
       }
     }
   };

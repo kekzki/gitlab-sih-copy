@@ -1,66 +1,22 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import TaxonomySearch from '../components/TaxonomySearch';
-import FilterSidebar from '../components/FilterSidebar';
-import SpeciesGrid from '../components/SpeciesGrid';
-import './Taxonomy.css';
+import React, { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
+import TaxonomySearch from "../components/TaxonomySearch";
+import FilterSidebar from "../components/FilterSidebar";
+import SpeciesGrid from "../components/SpeciesGrid";
+import { mockSpeciesData } from "../mockSpeciesData";
+import "./Taxonomy.css";
 
 const Taxonomy = () => {
   const navigate = useNavigate();
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filters, setFilters] = useState({});
-
-  // Mock data - replace with actual API call
-  const mockSpecies = [
-    {
-      id: 1,
-      commonName: 'Bluefin Tuna',
-      scientificName: 'Thunnus thynnus',
-      conservationStatus: 'EN',
-      imageUrl: 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=400',
-      lastSighting: '2024-11-20'
-    },
-    {
-      id: 2,
-      commonName: 'Great White Shark',
-      scientificName: 'Carcharodon carcharias',
-      conservationStatus: 'VU',
-      imageUrl: 'https://images.unsplash.com/photo-1560275619-4662e36fa65c?w=400',
-      lastSighting: '2024-11-18'
-    },
-    {
-      id: 3,
-      commonName: 'Clownfish',
-      scientificName: 'Amphiprioninae',
-      conservationStatus: 'LC',
-      imageUrl: 'https://images.unsplash.com/photo-1520990894801-df1493ada628?w=400',
-      lastSighting: '2024-11-22'
-    },
-    {
-      id: 4,
-      commonName: 'Manta Ray',
-      scientificName: 'Mobula birostris',
-      conservationStatus: 'EN',
-      imageUrl: 'https://images.unsplash.com/photo-1583212292454-1fe6229603b7?w=400',
-      lastSighting: '2024-11-19'
-    },
-    {
-      id: 5,
-      commonName: 'Sea Turtle',
-      scientificName: 'Chelonioidea',
-      conservationStatus: 'VU',
-      imageUrl: 'https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=400',
-      lastSighting: '2024-11-21'
-    },
-    {
-      id: 6,
-      commonName: 'Dolphin',
-      scientificName: 'Delphinus delphis',
-      conservationStatus: 'LC',
-      imageUrl: 'https://images.unsplash.com/photo-1607153333879-c174d265f1d2?w=400',
-      lastSighting: '2024-11-23'
-    }
-  ];
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filters, setFilters] = useState({
+    classifications: [],
+    observationPeriod: null,
+    regions: [],
+    conservationStatus: [],
+    dataQuality: [],
+    depthRange: [0, 5000],
+  });
 
   const handleSearch = (term) => {
     setSearchTerm(term);
@@ -71,32 +27,116 @@ const Taxonomy = () => {
   };
 
   const handleSpeciesClick = (species) => {
-    // Navigate to species detail page
     navigate(`/taxonomy/${species.id}`);
   };
 
-  // Filter species based on search and filters
-  const filteredSpecies = mockSpecies.filter(species => {
-    if (searchTerm && !species.commonName.toLowerCase().includes(searchTerm.toLowerCase()) &&
-        !species.scientificName.toLowerCase().includes(searchTerm.toLowerCase())) {
-      return false;
-    }
-    
-    if (filters.conservation && filters.conservation.length > 0 &&
-        !filters.conservation.includes(species.conservationStatus)) {
-      return false;
-    }
+  // Filter species based on ALL conditions (AND logic)
+  const filteredSpecies = useMemo(() => {
+    return mockSpeciesData.filter((species) => {
+      // 1. SEARCH FILTER
+      if (searchTerm) {
+        const searchLower = searchTerm.toLowerCase();
+        const matchesSearch =
+          species.vernacularName.toLowerCase().includes(searchLower) ||
+          species.scientificName.toLowerCase().includes(searchLower);
+        if (!matchesSearch) return false;
+      }
 
-    return true;
-  });
+      // 2. CLASSIFICATION FILTER (Class)
+      if (filters.classifications.length > 0) {
+        if (!filters.classifications.includes(species.class)) {
+          return false;
+        }
+      }
+
+      // 3. OBSERVATION PERIOD FILTER (Last sighting date)
+      if (filters.observationPeriod) {
+        const lastSighting = new Date(species.lastSightingDate);
+        const now = new Date();
+        const daysDifference = Math.floor(
+          (now - lastSighting) / (1000 * 60 * 60 * 24)
+        );
+
+        let isInRange = false;
+        switch (filters.observationPeriod) {
+          case "last24h":
+            isInRange = daysDifference <= 1;
+            break;
+          case "last7d":
+            isInRange = daysDifference <= 7;
+            break;
+          case "last30d":
+            isInRange = daysDifference <= 30;
+            break;
+          case "last1y":
+            isInRange = daysDifference <= 365;
+            break;
+          case "last5y":
+            isInRange = daysDifference <= 1825;
+            break;
+          case "allTime":
+            isInRange = true;
+            break;
+          default:
+            isInRange = true;
+        }
+
+        if (!isInRange) return false;
+      }
+
+      // 4. GEOGRAPHIC REGION FILTER
+      if (filters.regions.length > 0) {
+        const hasMatchingRegion = species.reportedRegions.some((region) =>
+          filters.regions.includes(region)
+        );
+        if (!hasMatchingRegion) return false;
+      }
+
+      // 5. CONSERVATION STATUS FILTER
+      if (filters.conservationStatus.length > 0) {
+        if (!filters.conservationStatus.includes(species.iucnStatus)) {
+          return false;
+        }
+      }
+
+      // 6. DATA QUALITY FILTER
+      if (filters.dataQuality.length > 0) {
+        if (!filters.dataQuality.includes(species.dataQuality)) {
+          return false;
+        }
+      }
+
+      // 7. HABITAT DEPTH FILTER
+      if (filters.depthRange) {
+        const [minDepth, maxDepth] = filters.depthRange;
+        // Check if species depth range overlaps with selected range
+        const speciesMinDepth = species.depthRangeMin;
+        const speciesMaxDepth = species.depthRangeMax;
+
+        // No overlap if: species ends before min OR species starts after max
+        if (speciesMaxDepth < minDepth || speciesMinDepth > maxDepth) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [searchTerm, filters]);
 
   return (
     <div className="taxonomy-page">
       <TaxonomySearch onSearch={handleSearch} />
-      
+
       <div className="taxonomy-content">
-        <FilterSidebar onFilterChange={handleFilterChange} />
-        <SpeciesGrid species={filteredSpecies} onSpeciesClick={handleSpeciesClick} />
+        <FilterSidebar
+          onFilterChange={handleFilterChange}
+          allSpecies={mockSpeciesData}
+        />
+        <SpeciesGrid
+          species={filteredSpecies}
+          onSpeciesClick={handleSpeciesClick}
+          resultCount={filteredSpecies.length}
+        />
       </div>
     </div>
   );
