@@ -1,41 +1,76 @@
-import React, { useState } from 'react';
-import { ChevronDown, ChevronUp, MapPin, Calendar, Shield, Waves } from 'lucide-react';
-import './FilterSidebar.css';
+import React, { useState, useMemo } from "react";
+import {
+  ChevronDown,
+  ChevronUp,
+  MapPin,
+  Calendar,
+  Shield,
+  Waves,
+} from "lucide-react";
+import "./FilterSidebar.css";
 
-const FilterSidebar = ({ onFilterChange }) => {
+const FilterSidebar = ({ onFilterChange, allSpecies = [] }) => {
   const [expandedSections, setExpandedSections] = useState({
     classification: true,
     time: true,
     location: true,
     conservation: true,
     quality: true,
-    depth: true
+    depth: true,
   });
 
   const [filters, setFilters] = useState({
-    classification: [],
-    timeRange: '',
-    locations: [],
-    conservation: [],
-    verified: false,
-    aiAnalyzed: false,
-    ednaConfirmed: false,
-    depthRange: [0, 5000]
+    classifications: [],
+    observationPeriod: null,
+    regions: [],
+    conservationStatus: [],
+    dataQuality: [],
+    depthRange: [0, 5000],
   });
 
+  // Extract unique values from species data
+  const uniqueClassifications = useMemo(() => {
+    return [...new Set(allSpecies.map((s) => s.class))];
+  }, [allSpecies]);
+
+  const uniqueRegions = useMemo(() => {
+    const regions = new Set();
+    allSpecies.forEach((species) => {
+      species.reportedRegions.forEach((region) => regions.add(region));
+    });
+    return Array.from(regions).sort();
+  }, [allSpecies]);
+
+  const uniqueConservationStatus = useMemo(() => {
+    return [...new Set(allSpecies.map((s) => s.iucnStatus))];
+  }, [allSpecies]);
+
+  const uniqueDataQuality = useMemo(() => {
+    return [...new Set(allSpecies.map((s) => s.dataQuality))];
+  }, [allSpecies]);
+
+  const conservationStatusColors = {
+    "Critically Endangered": "#dc2626",
+    Endangered: "#ea580c",
+    Vulnerable: "#eab308",
+    "Near Threatened": "#f59e0b",
+    "Least Concern": "#16a34a",
+  };
+
   const toggleSection = (section) => {
-    setExpandedSections(prev => ({
+    setExpandedSections((prev) => ({
       ...prev,
-      [section]: !prev[section]
+      [section]: !prev[section],
     }));
   };
 
   const handleFilterChange = (category, value) => {
     const newFilters = { ...filters };
-    
-    if (category === 'timeRange') {
-      newFilters.timeRange = value;
-    } else if (category === 'depthRange') {
+
+    if (category === "observationPeriod") {
+      newFilters.observationPeriod =
+        newFilters.observationPeriod === value ? null : value;
+    } else if (category === "depthRange") {
       newFilters.depthRange = value;
     } else if (Array.isArray(newFilters[category])) {
       const index = newFilters[category].indexOf(value);
@@ -44,44 +79,50 @@ const FilterSidebar = ({ onFilterChange }) => {
       } else {
         newFilters[category].push(value);
       }
-    } else {
-      newFilters[category] = !newFilters[category];
     }
-    
+
     setFilters(newFilters);
     if (onFilterChange) onFilterChange(newFilters);
   };
 
   const getActiveFilterCount = () => {
     let count = 0;
-    if (filters.classification.length > 0) count++;
-    if (filters.timeRange) count++;
-    if (filters.locations.length > 0) count++;
-    if (filters.conservation.length > 0) count++;
-    if (filters.verified || filters.aiAnalyzed || filters.ednaConfirmed) count++;
+    if (filters.classifications.length > 0) count++;
+    if (filters.observationPeriod) count++;
+    if (filters.regions.length > 0) count++;
+    if (filters.conservationStatus.length > 0) count++;
+    if (filters.dataQuality.length > 0) count++;
     return count;
   };
 
   const clearAllFilters = () => {
     const resetFilters = {
-      classification: [],
-      timeRange: '',
-      locations: [],
-      conservation: [],
-      verified: false,
-      aiAnalyzed: false,
-      ednaConfirmed: false,
-      depthRange: [0, 5000]
+      classifications: [],
+      observationPeriod: null,
+      regions: [],
+      conservationStatus: [],
+      dataQuality: [],
+      depthRange: [0, 5000],
     };
     setFilters(resetFilters);
     if (onFilterChange) onFilterChange(resetFilters);
   };
 
+  const observationPeriodOptions = [
+    { value: "last24h", label: "Last 24 Hours" },
+    { value: "last7d", label: "Last 7 Days" },
+    { value: "last30d", label: "Last 30 Days" },
+    { value: "last1y", label: "Last 1 Year" },
+    { value: "last5y", label: "Last 5 Years" },
+    { value: "allTime", label: "All Time" },
+  ];
+
   return (
     <div className="filter-sidebar">
       <div className="filter-header">
         <h3 className="filter-title">
-          Filters {getActiveFilterCount() > 0 && (
+          Filters{" "}
+          {getActiveFilterCount() > 0 && (
             <span className="filter-badge">{getActiveFilterCount()}</span>
           )}
         </h3>
@@ -89,148 +130,204 @@ const FilterSidebar = ({ onFilterChange }) => {
 
       {/* Classification Filter */}
       <div className="filter-section">
-        <button className="filter-section-header" onClick={() => toggleSection('classification')}>
+        <button
+          className="filter-section-header"
+          onClick={() => toggleSection("classification")}
+        >
           <span>📊 Classification</span>
-          {expandedSections.classification ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+          {expandedSections.classification ? (
+            <ChevronUp size={18} />
+          ) : (
+            <ChevronDown size={18} />
+          )}
         </button>
         {expandedSections.classification && (
           <div className="filter-options">
-            <label className="filter-checkbox">
-              <input
-                type="checkbox"
-                checked={filters.classification.includes('Actinopterygii')}
-                onChange={() => handleFilterChange('classification', 'Actinopterygii')}
-              />
-              <span>Actinopterygii (Ray-finned)</span>
-            </label>
-            <label className="filter-checkbox">
-              <input
-                type="checkbox"
-                checked={filters.classification.includes('Chondrichthyes')}
-                onChange={() => handleFilterChange('classification', 'Chondrichthyes')}
-              />
-              <span>Chondrichthyes (Cartilaginous)</span>
-            </label>
+            {uniqueClassifications.length > 0 ? (
+              uniqueClassifications.map((classification) => (
+                <label key={classification} className="filter-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={filters.classifications.includes(classification)}
+                    onChange={() =>
+                      handleFilterChange("classifications", classification)
+                    }
+                  />
+                  <span>{classification}</span>
+                </label>
+              ))
+            ) : (
+              <p className="no-options">No classifications available</p>
+            )}
           </div>
         )}
       </div>
 
       {/* Time Filter */}
       <div className="filter-section">
-        <button className="filter-section-header" onClick={() => toggleSection('time')}>
-          <span><Calendar size={16} className="inline-icon" /> Observation Period</span>
-          {expandedSections.time ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+        <button
+          className="filter-section-header"
+          onClick={() => toggleSection("time")}
+        >
+          <span>
+            <Calendar size={16} className="inline-icon" /> Observation Period
+          </span>
+          {expandedSections.time ? (
+            <ChevronUp size={18} />
+          ) : (
+            <ChevronDown size={18} />
+          )}
         </button>
         {expandedSections.time && (
           <div className="filter-options">
-            <select
-              className="filter-select"
-              value={filters.timeRange}
-              onChange={(e) => handleFilterChange('timeRange', e.target.value)}
-            >
-              <option value="">All Time</option>
-              <option value="24h">Last 24 Hours</option>
-              <option value="7d">Last 7 Days</option>
-              <option value="30d">Last 30 Days</option>
-              <option value="6m">Last 6 Months</option>
-            </select>
+            <div className="time-period-options">
+              {observationPeriodOptions.map((option) => (
+                <label key={option.value} className="filter-checkbox">
+                  <input
+                    type="radio"
+                    name="observationPeriod"
+                    value={option.value}
+                    checked={filters.observationPeriod === option.value}
+                    onChange={() =>
+                      handleFilterChange("observationPeriod", option.value)
+                    }
+                  />
+                  <span>{option.label}</span>
+                </label>
+              ))}
+            </div>
           </div>
         )}
       </div>
 
       {/* Location Filter */}
       <div className="filter-section">
-        <button className="filter-section-header" onClick={() => toggleSection('location')}>
-          <span><MapPin size={16} className="inline-icon" /> Geographic Region</span>
-          {expandedSections.location ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+        <button
+          className="filter-section-header"
+          onClick={() => toggleSection("location")}
+        >
+          <span>
+            <MapPin size={16} className="inline-icon" /> Geographic Region
+          </span>
+          {expandedSections.location ? (
+            <ChevronUp size={18} />
+          ) : (
+            <ChevronDown size={18} />
+          )}
         </button>
         {expandedSections.location && (
           <div className="filter-options">
-            {['Bay of Bengal', 'Arabian Sea', 'Lakshadweep Islands', 'Andaman & Nicobar'].map(loc => (
-              <label key={loc} className="filter-checkbox">
-                <input
-                  type="checkbox"
-                  checked={filters.locations.includes(loc)}
-                  onChange={() => handleFilterChange('locations', loc)}
-                />
-                <span>{loc}</span>
-              </label>
-            ))}
+            {uniqueRegions.length > 0 ? (
+              uniqueRegions.map((region) => (
+                <label key={region} className="filter-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={filters.regions.includes(region)}
+                    onChange={() => handleFilterChange("regions", region)}
+                  />
+                  <span>{region}</span>
+                </label>
+              ))
+            ) : (
+              <p className="no-options">No regions available</p>
+            )}
           </div>
         )}
       </div>
 
       {/* Conservation Status */}
       <div className="filter-section">
-        <button className="filter-section-header" onClick={() => toggleSection('conservation')}>
-          <span><Shield size={16} className="inline-icon" /> Conservation Status</span>
-          {expandedSections.conservation ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+        <button
+          className="filter-section-header"
+          onClick={() => toggleSection("conservation")}
+        >
+          <span>
+            <Shield size={16} className="inline-icon" /> Conservation Status
+          </span>
+          {expandedSections.conservation ? (
+            <ChevronUp size={18} />
+          ) : (
+            <ChevronDown size={18} />
+          )}
         </button>
         {expandedSections.conservation && (
           <div className="filter-options">
-            {[
-              { value: 'CR', label: 'Critically Endangered', color: '#dc2626' },
-              { value: 'EN', label: 'Endangered', color: '#ea580c' },
-              { value: 'VU', label: 'Vulnerable', color: '#eab308' },
-              { value: 'LC', label: 'Least Concern', color: '#16a34a' }
-            ].map(status => (
-              <label key={status.value} className="filter-checkbox">
-                <input
-                  type="checkbox"
-                  checked={filters.conservation.includes(status.value)}
-                  onChange={() => handleFilterChange('conservation', status.value)}
-                />
-                <span>
-                  <span className="status-dot" style={{ backgroundColor: status.color }}></span>
-                  {status.label}
-                </span>
-              </label>
-            ))}
+            {uniqueConservationStatus.length > 0 ? (
+              uniqueConservationStatus.map((status) => (
+                <label key={status} className="filter-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={filters.conservationStatus.includes(status)}
+                    onChange={() =>
+                      handleFilterChange("conservationStatus", status)
+                    }
+                  />
+                  <span>
+                    <span
+                      className="status-dot"
+                      style={{
+                        backgroundColor:
+                          conservationStatusColors[status] || "#999",
+                      }}
+                    ></span>
+                    {status}
+                  </span>
+                </label>
+              ))
+            ) : (
+              <p className="no-options">No conservation statuses available</p>
+            )}
           </div>
         )}
       </div>
 
       {/* Data Quality */}
       <div className="filter-section">
-        <button className="filter-section-header" onClick={() => toggleSection('quality')}>
+        <button
+          className="filter-section-header"
+          onClick={() => toggleSection("quality")}
+        >
           <span>✓ Data Quality</span>
-          {expandedSections.quality ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+          {expandedSections.quality ? (
+            <ChevronUp size={18} />
+          ) : (
+            <ChevronDown size={18} />
+          )}
         </button>
         {expandedSections.quality && (
           <div className="filter-options">
-            <label className="filter-checkbox">
-              <input
-                type="checkbox"
-                checked={filters.verified}
-                onChange={() => handleFilterChange('verified', null)}
-              />
-              <span>Only Verified Species</span>
-            </label>
-            <label className="filter-checkbox">
-              <input
-                type="checkbox"
-                checked={filters.aiAnalyzed}
-                onChange={() => handleFilterChange('aiAnalyzed', null)}
-              />
-              <span>AI-Analyzed Records</span>
-            </label>
-            <label className="filter-checkbox">
-              <input
-                type="checkbox"
-                checked={filters.ednaConfirmed}
-                onChange={() => handleFilterChange('ednaConfirmed', null)}
-              />
-              <span>eDNA Confirmed</span>
-            </label>
+            {uniqueDataQuality.length > 0 ? (
+              uniqueDataQuality.map((quality) => (
+                <label key={quality} className="filter-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={filters.dataQuality.includes(quality)}
+                    onChange={() => handleFilterChange("dataQuality", quality)}
+                  />
+                  <span>{quality}</span>
+                </label>
+              ))
+            ) : (
+              <p className="no-options">No data quality options available</p>
+            )}
           </div>
         )}
       </div>
 
       {/* Depth Range */}
       <div className="filter-section">
-        <button className="filter-section-header" onClick={() => toggleSection('depth')}>
-          <span><Waves size={16} className="inline-icon" /> Habitat Depth</span>
-          {expandedSections.depth ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+        <button
+          className="filter-section-header"
+          onClick={() => toggleSection("depth")}
+        >
+          <span>
+            <Waves size={16} className="inline-icon" /> Habitat Depth
+          </span>
+          {expandedSections.depth ? (
+            <ChevronUp size={18} />
+          ) : (
+            <ChevronDown size={18} />
+          )}
         </button>
         {expandedSections.depth && (
           <div className="filter-options">
@@ -241,7 +338,12 @@ const FilterSidebar = ({ onFilterChange }) => {
                 min="0"
                 max="5000"
                 value={filters.depthRange[1]}
-                onChange={(e) => handleFilterChange('depthRange', [0, parseInt(e.target.value)])}
+                onChange={(e) =>
+                  handleFilterChange("depthRange", [
+                    0,
+                    parseInt(e.target.value),
+                  ])
+                }
                 className="depth-slider"
               />
               <span className="depth-value">Max: {filters.depthRange[1]}m</span>
