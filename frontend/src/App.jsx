@@ -14,14 +14,7 @@ import SpeciesDetail from "./pages/SpeciesDetail";
 import ResearcherDashboard from "./pages/ResearcherDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
 import UserDashboard from "./pages/UserDashboard";
-
-// Placeholder component for the Upload page
-const UploadDatasetPlaceholder = () => (
-  <div className="p-10 text-center text-xl text-gray-600">
-    <h2>Upload Page Under Development</h2>
-    <p>The backend API for file uploads is still being built.</p>
-  </div>
-);
+import UploadDataset from "./pages/UploadDataset";
 
 const App = () => {
   return (
@@ -43,10 +36,7 @@ const App = () => {
             />
             <Route path="/admin-dashboard" element={<AdminDashboard />} />
             <Route path="/user-dashboard" element={<UserDashboard />} />
-            <Route
-              path="/upload-dataset"
-              element={<UploadDatasetPlaceholder />}
-            />
+            <Route path="/upload-dataset" element={<UploadDataset />} />
           </Routes>
         </main>
       </div>
