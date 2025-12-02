@@ -35,7 +35,7 @@ const Login = ({ onClose }) => {
 
     // Query the 'users' table using the UUID to get the role
     const { data: userData, error: roleError } = await supabase
-      .from("users")
+      .from("profiles")
       .select("role")
       .eq("id", user.id)
       .single();
