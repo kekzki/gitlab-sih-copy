@@ -23,45 +23,45 @@ var db *sql.DB
 // --- Structs ---
 
 type Species struct {
-	ID                   int      `json:"id"`
-	VernacularName       string   `json:"vernacular_name"`
-	ScientificName       string   `json:"scientific_name"`
-	ImageURLs            []string `json:"image_urls"`
-	Kingdom              string   `json:"kingdom"`
-	Phylum               string   `json:"phylum"`
-	Class                string   `json:"class"`
-	Order                string   `json:"order"`
-	Family               string   `json:"family"`
-	Genus                string   `json:"genus"`
-	Species              string   `json:"species"`
-	HabitatType          string   `json:"habitat_type"`
-	Diet                 string   `json:"diet"`
-	ReportedRegions      []string `json:"reported_regions"`
-	MaxLengthCm          float64  `json:"max_length_cm"`
-	MaxWeightKg          float64  `json:"max_weight_kg"`
-	MaxAgeYears          float64  `json:"max_age_years"`
-	AgeOfMaturityYears   float64  `json:"age_of_maturity_years"`
-	DepthRangeMin        float64  `json:"depth_range_min"`
-	DepthRangeMax        float64  `json:"depth_range_max"`
-	ConservationStatus   string   `json:"conservation_status"`
-	Fecundity            string   `json:"fecundity"`
-	SpawningSeason       string   `json:"spawning_season"`
-	MaturitySize         float64  `json:"maturity_size"`
-	SexRatio             string   `json:"sex_ratio"`
-	Recruitment          string   `json:"recruitment"`
-	MortalityRate        float64  `json:"mortality_rate"`
-	Longevity            float64  `json:"longevity"`
-	DietComposition      string   `json:"diet_composition"`
-	TrophicLevel         float64  `json:"trophic_level"`
-	LarvalSurvival       float64  `json:"larval_survival"`
-	LarvalDuration       string   `json:"larval_duration"`
-	MetamorphosisTiming  string   `json:"metamorphosis_timing"`
-	MigrationPatterns    string   `json:"migration_patterns"`
-	HabitatPreference    string   `json:"habitat_preference"`
-	ThermalTolerance     string   `json:"thermal_tolerance"`
-	SalinityTolerance    string   `json:"salinity_tolerance"`
-	MetabolicRate        float64  `json:"metabolic_rate"`
-	O2Efficiency         float64  `json:"o2_efficiency"`
+	ID                 int      `json:"id"`
+	VernacularName     string   `json:"vernacular_name"`
+	ScientificName     string   `json:"scientific_name"`
+	ImageURLs          []string `json:"image_urls"`
+	Kingdom            string   `json:"kingdom"`
+	Phylum             string   `json:"phylum"`
+	Class              string   `json:"class"`
+	Order              string   `json:"order"`
+	Family             string   `json:"family"`
+	Genus              string   `json:"genus"`
+	Species            string   `json:"species"`
+	HabitatType        string   `json:"habitat_type"`
+	Diet               string   `json:"diet"`
+	ReportedRegions    []string `json:"reported_regions"`
+	MaxLengthCm        float64  `json:"max_length_cm"`
+	MaxWeightKg        float64  `json:"max_weight_kg"`
+	MaxAgeYears        float64  `json:"max_age_years"`
+	AgeOfMaturityYears float64  `json:"age_of_maturity_years"`
+	DepthRangeMin      float64  `json:"depth_range_min"`
+	DepthRangeMax      float64  `json:"depth_range_max"`
+	ConservationStatus string   `json:"conservation_status"`
+	Fecundity          string   `json:"fecundity"`
+	SpawningSeason     string   `json:"spawning_season"`
+	MaturitySize       float64  `json:"maturity_size"`
+	SexRatio           string   `json:"sex_ratio"`
+	Recruitment        string   `json:"recruitment"`
+	MortalityRate      float64  `json:"mortality_rate"`
+	Longevity          float64  `json:"longevity"`
+	DietComposition    string   `json:"diet_composition"`
+	TrophicLevel       float64  `json:"trophic_level"`
+	LarvalSurvival     float64  `json:"larval_survival"`
+	LarvalDuration     string   `json:"larval_duration"`
+	MetamorphosisTiming string  `json:"metamorphosis_timing"`
+	MigrationPatterns   string  `json:"migration_patterns"`
+	HabitatPreference   string  `json:"habitat_preference"`
+	ThermalTolerance    string  `json:"thermal_tolerance"`
+	SalinityTolerance   string  `json:"salinity_tolerance"`
+	MetabolicRate       float64 `json:"metabolic_rate"`
+	O2Efficiency        float64 `json:"o2_efficiency"`
 }
 
 type Otolith struct {
@@ -105,6 +105,7 @@ type BlastResult struct {
 
 func main() {
 	var err error
+	// Use environment variable for Docker, fallback for local
 	connStr := os.Getenv("DATABASE_URL")
 	if connStr == "" {
 		connStr = "host=localhost user=postgres password=paradoxxDB2025 dbname=postgres sslmode=disable"
@@ -116,6 +117,7 @@ func main() {
 	}
 	defer db.Close()
 
+	// Wait for DB to be ready
 	for i := 0; i < 10; i++ {
 		err = db.Ping()
 		if err == nil {
@@ -128,6 +130,7 @@ func main() {
 		log.Fatal("Could not connect to database:", err)
 	}
 
+	// Register Routes
 	http.HandleFunc("/api/filters/classes", getClasses)
 	http.HandleFunc("/api/filters/regions", getRegions)
 	http.HandleFunc("/api/filters/conservation-status", getConservationStatuses)
@@ -216,161 +219,128 @@ func getConservationStatuses(w http.ResponseWriter, r *http.Request) {
 }
 
 func getSpecies(w http.ResponseWriter, r *http.Request) {
-	query := `SELECT 
-		id, 
-		COALESCE(vernacularname, ''), 
-		COALESCE(scientific_name, ''), 
-		image_urls, 
-		COALESCE(kingdom, ''), 
-		COALESCE(phylum, ''), 
-		COALESCE(class, ''), 
-		COALESCE(_order, ''), 
-		COALESCE(family, ''), 
-		COALESCE(genus, ''), 
-		COALESCE(species, ''), 
-		COALESCE(habitat_type, ''), 
-		COALESCE(diet, ''), 
-		reported_regions, 
-		COALESCE(max_length_cm, 0), 
-		COALESCE(max_weight_kg, 0),
-		COALESCE(max_age_years, 0),
-		COALESCE(age_of_maturity_years, 0), 
-		COALESCE(depth_range_min, 0), 
-		COALESCE(depth_range_max, 0), 
-		COALESCE(conservation_status, 'Unknown'),
-		COALESCE(fecundity, ''),
-		COALESCE(spawning_season, ''),
-		COALESCE(maturity_size, 0),
-		COALESCE(sex_ratio, ''),
-		COALESCE(recruitment, ''),
-		COALESCE(mortality_rate, 0),
-		COALESCE(longevity, 0),
-		COALESCE(diet_composition, ''),
-		COALESCE(trophic_level, 0),
-		COALESCE(larval_survival, 0),
-		COALESCE(larval_duration, ''),
-		COALESCE(metamorphosis_timing, ''),
-		COALESCE(migration_patterns, ''),
-		COALESCE(habitat_preference, ''),
-		COALESCE(thermal_tolerance, ''),
-		COALESCE(salinity_tolerance, ''),
-		COALESCE(metabolic_rate, 0),
-		COALESCE(o2_efficiency, 0)
-		FROM species_data WHERE 1=1`
+	// Base query fields
+	selectFields := `
+		s.id, 
+		COALESCE(s.vernacularname, ''), 
+		COALESCE(s.scientific_name, ''), 
+		s.image_urls, 
+		COALESCE(s.kingdom, ''), 
+		COALESCE(s.phylum, ''), 
+		COALESCE(s.class, ''), 
+		COALESCE(s._order, ''), 
+		COALESCE(s.family, ''), 
+		COALESCE(s.genus, ''), 
+		COALESCE(s.species, ''), 
+		COALESCE(s.habitat_type, ''), 
+		COALESCE(s.diet, ''), 
+		s.reported_regions, 
+		COALESCE(s.max_length_cm, 0), 
+		COALESCE(s.max_weight_kg, 0),
+		COALESCE(s.max_age_years, 0),
+		COALESCE(s.age_of_maturity_years, 0), 
+		COALESCE(s.depth_range_min, 0), 
+		COALESCE(s.depth_range_max, 0), 
+		COALESCE(s.conservation_status, 'Unknown'),
+		COALESCE(s.fecundity, ''),
+		COALESCE(s.spawning_season, ''),
+		COALESCE(s.maturity_size, 0),
+		COALESCE(s.sex_ratio, ''),
+		COALESCE(s.recruitment, ''),
+		COALESCE(s.mortality_rate, 0),
+		COALESCE(s.longevity, 0),
+		COALESCE(s.diet_composition, ''),
+		COALESCE(s.trophic_level, 0),
+		COALESCE(s.larval_survival, 0),
+		COALESCE(s.larval_duration, ''),
+		COALESCE(s.metamorphosis_timing, ''),
+		COALESCE(s.migration_patterns, ''),
+		COALESCE(s.habitat_preference, ''),
+		COALESCE(s.thermal_tolerance, ''),
+		COALESCE(s.salinity_tolerance, ''),
+		COALESCE(s.metabolic_rate, 0),
+		COALESCE(s.o2_efficiency, 0)`
 
+	// Start constructing the query
+	// We use an alias 's' for species_data so we can join easily if needed
+	baseQuery := "SELECT DISTINCT " + selectFields + " FROM species_data s"
+	joinClause := ""
+	whereClauses := []string{"1=1"}
 	args := []interface{}{}
 	argCount := 1
 
-	// Class filter
-	if class := r.URL.Query().Get("class"); class != "" {
-		query += " AND class = $" + strconv.Itoa(argCount)
-		args = append(args, class)
-		argCount++
-	}
+	// --- Check Filters ---
 
-	// Conservation status filter
-	if status := r.URL.Query().Get("conservation_status"); status != "" {
-		query += " AND conservation_status = $" + strconv.Itoa(argCount)
-		args = append(args, status)
-		argCount++
-	}
-
-	// Depth range filter
-	if minDepth := r.URL.Query().Get("min_depth"); minDepth != "" {
-		query += " AND depth_range_min >= $" + strconv.Itoa(argCount)
-		args = append(args, minDepth)
-		argCount++
-	}
-	if maxDepth := r.URL.Query().Get("max_depth"); maxDepth != "" {
-		query += " AND depth_range_max <= $" + strconv.Itoa(argCount)
-		args = append(args, maxDepth)
-		argCount++
-	}
-
-	// Search filter
-	if search := r.URL.Query().Get("search"); search != "" {
-		query += " AND (vernacularname ILIKE $" + strconv.Itoa(argCount) + " OR scientific_name ILIKE $" + strconv.Itoa(argCount) + ")"
-		args = append(args, "%"+search+"%")
-		argCount++
-	}
-
-	// Region filter (requires JOIN with occurrence_data)
+	// Region Filter (Requires JOIN)
 	if region := r.URL.Query().Get("region"); region != "" {
-		query = `SELECT DISTINCT s.id, 
-			COALESCE(s.vernacularname, ''), 
-			COALESCE(s.scientific_name, ''), 
-			s.image_urls, 
-			COALESCE(s.kingdom, ''), 
-			COALESCE(s.phylum, ''), 
-			COALESCE(s.class, ''), 
-			COALESCE(s._order, ''), 
-			COALESCE(s.family, ''), 
-			COALESCE(s.genus, ''), 
-			COALESCE(s.species, ''), 
-			COALESCE(s.habitat_type, ''), 
-			COALESCE(s.diet, ''), 
-			s.reported_regions, 
-			COALESCE(s.max_length_cm, 0), 
-			COALESCE(s.max_weight_kg, 0),
-			COALESCE(s.max_age_years, 0),
-			COALESCE(s.age_of_maturity_years, 0), 
-			COALESCE(s.depth_range_min, 0), 
-			COALESCE(s.depth_range_max, 0), 
-			COALESCE(s.conservation_status, 'Unknown'),
-			COALESCE(s.fecundity, ''),
-			COALESCE(s.spawning_season, ''),
-			COALESCE(s.maturity_size, 0),
-			COALESCE(s.sex_ratio, ''),
-			COALESCE(s.recruitment, ''),
-			COALESCE(s.mortality_rate, 0),
-			COALESCE(s.longevity, 0),
-			COALESCE(s.diet_composition, ''),
-			COALESCE(s.trophic_level, 0),
-			COALESCE(s.larval_survival, 0),
-			COALESCE(s.larval_duration, ''),
-			COALESCE(s.metamorphosis_timing, ''),
-			COALESCE(s.migration_patterns, ''),
-			COALESCE(s.habitat_preference, ''),
-			COALESCE(s.thermal_tolerance, ''),
-			COALESCE(s.salinity_tolerance, ''),
-			COALESCE(s.metabolic_rate, 0),
-			COALESCE(s.o2_efficiency, 0)
-			FROM species_data s 
-			INNER JOIN occurrence_data o ON s.id = o.species_id 
-			WHERE o.region = $` + strconv.Itoa(argCount)
+		joinClause = " INNER JOIN occurrence_data o ON s.id = o.species_id"
+		whereClauses = append(whereClauses, "o.region = $"+strconv.Itoa(argCount))
 		args = append(args, region)
 		argCount++
 	}
 
-	// Time filter (requires JOIN with occurrence_data)
+	// Time Filter (Requires JOIN)
 	if timeFilter := r.URL.Query().Get("time"); timeFilter != "" {
-		var timeCondition string
-		now := time.Now()
-		
-		switch timeFilter {
-		case "24h":
-			timeCondition = fmt.Sprintf("o.eventdate >= '%s'", now.Add(-24*time.Hour).Format("2006-01-02"))
-		case "7d":
-			timeCondition = fmt.Sprintf("o.eventdate >= '%s'", now.AddDate(0, 0, -7).Format("2006-01-02"))
-		case "1m":
-			timeCondition = fmt.Sprintf("o.eventdate >= '%s'", now.AddDate(0, -1, 0).Format("2006-01-02"))
-		case "1y":
-			timeCondition = fmt.Sprintf("o.eventdate >= '%s'", now.AddDate(-1, 0, 0).Format("2006-01-02"))
-		case "5y":
-			timeCondition = fmt.Sprintf("o.eventdate >= '%s'", now.AddDate(-5, 0, 0).Format("2006-01-02"))
+		// Only add JOIN if we haven't already added it for Region
+		if joinClause == "" {
+			joinClause = " INNER JOIN occurrence_data o ON s.id = o.species_id"
 		}
 		
-		if timeCondition != "" {
-			if !strings.Contains(query, "occurrence_data o") {
-				query = strings.Replace(query, "FROM species_data", "FROM species_data s INNER JOIN occurrence_data o ON s.id = o.species_id", 1)
-				query = strings.Replace(query, "WHERE 1=1", "WHERE "+timeCondition, 1)
-			} else {
-				query += " AND " + timeCondition
-			}
+		now := time.Now()
+		var dateStr string
+		switch timeFilter {
+		case "24h":
+			dateStr = now.Add(-24 * time.Hour).Format("2006-01-02")
+		case "7d":
+			dateStr = now.AddDate(0, 0, -7).Format("2006-01-02")
+		case "1m":
+			dateStr = now.AddDate(0, -1, 0).Format("2006-01-02")
+		case "1y":
+			dateStr = now.AddDate(-1, 0, 0).Format("2006-01-02")
+		case "5y":
+			dateStr = now.AddDate(-5, 0, 0).Format("2006-01-02")
+		}
+
+		if dateStr != "" {
+			whereClauses = append(whereClauses, "o.eventdate >= '"+dateStr+"'")
 		}
 	}
 
-	rows, err := db.Query(query, args...)
+	// Standard Filters
+	if class := r.URL.Query().Get("class"); class != "" {
+		whereClauses = append(whereClauses, "s.class = $"+strconv.Itoa(argCount))
+		args = append(args, class)
+		argCount++
+	}
+
+	if status := r.URL.Query().Get("conservation_status"); status != "" {
+		whereClauses = append(whereClauses, "s.conservation_status = $"+strconv.Itoa(argCount))
+		args = append(args, status)
+		argCount++
+	}
+
+	if minDepth := r.URL.Query().Get("min_depth"); minDepth != "" {
+		whereClauses = append(whereClauses, "s.depth_range_min >= $"+strconv.Itoa(argCount))
+		args = append(args, minDepth)
+		argCount++
+	}
+
+	if maxDepth := r.URL.Query().Get("max_depth"); maxDepth != "" {
+		whereClauses = append(whereClauses, "s.depth_range_max <= $"+strconv.Itoa(argCount))
+		args = append(args, maxDepth)
+		argCount++
+	}
+
+	if search := r.URL.Query().Get("search"); search != "" {
+		whereClauses = append(whereClauses, "(s.vernacularname ILIKE $"+strconv.Itoa(argCount)+" OR s.scientific_name ILIKE $"+strconv.Itoa(argCount)+")")
+		args = append(args, "%"+search+"%")
+		argCount++
+	}
+
+	// Assemble final query
+	finalQuery := baseQuery + joinClause + " WHERE " + strings.Join(whereClauses, " AND ")
+
+	rows, err := db.Query(finalQuery, args...)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -396,7 +366,7 @@ func getSpecies(w http.ResponseWriter, r *http.Request) {
 		}
 		speciesList = append(speciesList, s)
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(speciesList)
 }
@@ -486,7 +456,7 @@ func getOtoliths(w http.ResponseWriter, r *http.Request) {
 		}
 		otoliths = append(otoliths, o)
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(otoliths)
 }
@@ -494,19 +464,20 @@ func getOtoliths(w http.ResponseWriter, r *http.Request) {
 func getLatestSighting(w http.ResponseWriter, r *http.Request) {
 	speciesID := strings.TrimPrefix(r.URL.Path, "/api/latest-sighting/")
 	var sighting LatestSighting
-	
-	err := db.QueryRow("SELECT eventdate, region, waterdepth_m, recordedby FROM occurrence_data WHERE species_id = $1 ORDER BY eventdate DESC LIMIT 1", speciesID).Scan(&sighting.Date, &sighting.Location, &sighting.WaterDepth, &sighting.RecordedBy)
+
+	// FIXED: Added COALESCE to waterdepth_m to prevent crashes on NULL values
+	err := db.QueryRow("SELECT eventdate, region, COALESCE(waterdepth_m, 0), recordedby FROM occurrence_data WHERE species_id = $1 ORDER BY eventdate DESC LIMIT 1", speciesID).Scan(&sighting.Date, &sighting.Location, &sighting.WaterDepth, &sighting.RecordedBy)
 
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(sighting)
 }
 
-// NCBI External API
+// --- NCBI External API Handlers ---
 
 func handleBlast(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
@@ -538,6 +509,10 @@ func handleBlast(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 
+
+[Image of HTTP Request Response Cycle]
+ - The frontend waits here while we talk to NCBI
 	rid, err := submitToNCBI(sequence)
 	if err != nil {
 		http.Error(w, "Failed to submit to NCBI: "+err.Error(), http.StatusBadGateway)
@@ -598,6 +573,9 @@ func submitToNCBI(sequence string) (string, error) {
 	data.Set("PROGRAM", "blastn")
 	data.Set("DATABASE", "nt")
 	data.Set("QUERY", sequence)
+	// Important: NCBI requires these to contact you if you abuse the API
+	data.Set("tool", "FishSpeciesDB") 
+	data.Set("email", "admin@localhost") 
 
 	resp, err := http.PostForm(apiURL, data)
 	if err != nil {
@@ -637,54 +615,64 @@ func checkNCBIStatus(rid string) (string, error) {
 
 	if strings.Contains(content, "Status=WAITING") {
 		return "WAITING", nil
-		}
-		if strings.Contains(content, "Status=READY") {
+	}
+	if strings.Contains(content, "Status=READY") {
 		return "READY", nil
-		}
-		return "FAILED", nil
-		}
-		func getNCBIResults(rid string) ([]BlastResult, error) {
-		apiURL := fmt.Sprintf("https://blast.ncbi.nlm.nih.gov/Blast.cgi?CMD=Get&FORMAT_TYPE=Text&ALIGNMENT_VIEW=Tabular&RID=%s", rid)
-		resp, err := http.Get(apiURL)
-		if err != nil {
+	}
+	return "FAILED", nil
+}
+
+func getNCBIResults(rid string) ([]BlastResult, error) {
+	apiURL := fmt.Sprintf("https://blast.ncbi.nlm.nih.gov/Blast.cgi?CMD=Get&FORMAT_TYPE=Text&ALIGNMENT_VIEW=Tabular&RID=%s", rid)
+	resp, err := http.Get(apiURL)
+	if err != nil {
 		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var results []BlastResult
+	scanner := bufio.NewScanner(resp.Body)
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.HasPrefix(line, "#") || strings.TrimSpace(line) == "" {
+			continue
 		}
-		defer resp.Body.Close()
-		var results []BlastResult
-		scanner := bufio.NewScanner(resp.Body)
-		
-		for scanner.Scan() {
-			line := scanner.Text()
-			if strings.HasPrefix(line, "#") || strings.TrimSpace(line) == "" {
-				continue
-			}
-			parts := strings.Fields(line)
-			if len(parts) < 12 {
-				continue
-			}
-		
-			identity, _ := strconv.ParseFloat(parts[2], 64)
-			alignLen, _ := strconv.Atoi(parts[3])
-			mismatches, _ := strconv.Atoi(parts[4])
-			gapOpens, _ := strconv.Atoi(parts[5])
-			qStart, _ := strconv.Atoi(parts[6])
-			qEnd, _ := strconv.Atoi(parts[7])
-			sStart, _ := strconv.Atoi(parts[8])
-			sEnd, _ := strconv.Atoi(parts[9])
-			eValue, _ := strconv.ParseFloat(parts[10], 64)
-			bitScore, _ := strconv.ParseFloat(parts[11], 64)
-		
-			results = append(results, BlastResult{
-				QueryID: parts[0], SubjectID: parts[1], Identity: identity,
-				AlignmentLen: alignLen, Mismatches: mismatches, GapOpens: gapOpens,
-				QueryStart: qStart, QueryEnd: qEnd, SubjectStart: sStart, SubjectEnd: sEnd,
-				Evalue: eValue, BitScore: bitScore,
-			})
+		parts := strings.Fields(line)
+		if len(parts) < 12 {
+			continue
 		}
-		
-		if err := scanner.Err(); err != nil {
-			return nil, err
-		}
-		
-		return results, nil
-		}
+
+		identity, _ := strconv.ParseFloat(parts[2], 64)
+		alignLen, _ := strconv.Atoi(parts[3])
+		mismatches, _ := strconv.Atoi(parts[4])
+		gapOpens, _ := strconv.Atoi(parts[5])
+		qStart, _ := strconv.Atoi(parts[6])
+		qEnd, _ := strconv.Atoi(parts[7])
+		sStart, _ := strconv.Atoi(parts[8])
+		sEnd, _ := strconv.Atoi(parts[9])
+		eValue, _ := strconv.ParseFloat(parts[10], 64)
+		bitScore, _ := strconv.ParseFloat(parts[11], 64)
+
+		results = append(results, BlastResult{
+			QueryID:      parts[0],
+			SubjectID:    parts[1],
+			Identity:     identity,
+			AlignmentLen: alignLen,
+			Mismatches:   mismatches,
+			GapOpens:     gapOpens,
+			QueryStart:   qStart,
+			QueryEnd:     qEnd,
+			SubjectStart: sStart,
+			SubjectEnd:   sEnd,
+			Evalue:       eValue,
+			BitScore:     bitScore,
+		})
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	return results, nil
+}
