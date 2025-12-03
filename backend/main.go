@@ -23,45 +23,45 @@ var db *sql.DB
 // --- Structs ---
 
 type Species struct {
-	ID                 int      `json:"id"`
-	VernacularName     string   `json:"vernacular_name"`
-	ScientificName     string   `json:"scientific_name"`
-	ImageURLs          []string `json:"image_urls"`
-	Kingdom            string   `json:"kingdom"`
-	Phylum             string   `json:"phylum"`
-	Class              string   `json:"class"`
-	Order              string   `json:"order"`
-	Family             string   `json:"family"`
-	Genus              string   `json:"genus"`
-	Species            string   `json:"species"`
-	HabitatType        string   `json:"habitat_type"`
-	Diet               string   `json:"diet"`
-	ReportedRegions    []string `json:"reported_regions"`
-	MaxLengthCm        float64  `json:"max_length_cm"`
-	MaxWeightKg        float64  `json:"max_weight_kg"`
-	MaxAgeYears        float64  `json:"max_age_years"`
-	AgeOfMaturityYears float64  `json:"age_of_maturity_years"`
-	DepthRangeMin      float64  `json:"depth_range_min"`
-	DepthRangeMax      float64  `json:"depth_range_max"`
-	ConservationStatus string   `json:"conservation_status"`
-	Fecundity          string   `json:"fecundity"`
-	SpawningSeason     string   `json:"spawning_season"`
-	MaturitySize       float64  `json:"maturity_size"`
-	SexRatio           string   `json:"sex_ratio"`
-	Recruitment        string   `json:"recruitment"`
-	MortalityRate      float64  `json:"mortality_rate"`
-	Longevity          float64  `json:"longevity"`
-	DietComposition    string   `json:"diet_composition"`
-	TrophicLevel       float64  `json:"trophic_level"`
-	LarvalSurvival     float64  `json:"larval_survival"`
-	LarvalDuration     string   `json:"larval_duration"`
-	MetamorphosisTiming string  `json:"metamorphosis_timing"`
-	MigrationPatterns   string  `json:"migration_patterns"`
-	HabitatPreference   string  `json:"habitat_preference"`
-	ThermalTolerance    string  `json:"thermal_tolerance"`
-	SalinityTolerance   string  `json:"salinity_tolerance"`
-	MetabolicRate       float64 `json:"metabolic_rate"`
-	O2Efficiency        float64 `json:"o2_efficiency"`
+	ID                  int      `json:"id"`
+	VernacularName      string   `json:"vernacular_name"`
+	ScientificName      string   `json:"scientific_name"`
+	ImageURLs           []string `json:"image_urls"`
+	Kingdom             string   `json:"kingdom"`
+	Phylum              string   `json:"phylum"`
+	Class               string   `json:"class"`
+	Order               string   `json:"order"`
+	Family              string   `json:"family"`
+	Genus               string   `json:"genus"`
+	Species             string   `json:"species"`
+	HabitatType         string   `json:"habitat_type"`
+	Diet                string   `json:"diet"`
+	ReportedRegions     []string `json:"reported_regions"`
+	MaxLengthCm         float64  `json:"max_length_cm"`
+	MaxWeightKg         float64  `json:"max_weight_kg"`
+	MaxAgeYears         float64  `json:"max_age_years"`
+	AgeOfMaturityYears  float64  `json:"age_of_maturity_years"`
+	DepthRangeMin       float64  `json:"depth_range_min"`
+	DepthRangeMax       float64  `json:"depth_range_max"`
+	ConservationStatus  string   `json:"conservation_status"`
+	Fecundity           string   `json:"fecundity"`
+	SpawningSeason      string   `json:"spawning_season"`
+	MaturitySize        float64  `json:"maturity_size"`
+	SexRatio            string   `json:"sex_ratio"`
+	Recruitment         string   `json:"recruitment"`
+	MortalityRate       float64  `json:"mortality_rate"`
+	Longevity           float64  `json:"longevity"`
+	DietComposition     string   `json:"diet_composition"`
+	TrophicLevel        float64  `json:"trophic_level"`
+	LarvalSurvival      float64  `json:"larval_survival"`
+	LarvalDuration      string   `json:"larval_duration"`
+	MetamorphosisTiming string   `json:"metamorphosis_timing"`
+	MigrationPatterns   string   `json:"migration_patterns"`
+	HabitatPreference   string   `json:"habitat_preference"`
+	ThermalTolerance    string   `json:"thermal_tolerance"`
+	SalinityTolerance   string   `json:"salinity_tolerance"`
+	MetabolicRate       float64  `json:"metabolic_rate"`
+	O2Efficiency        float64  `json:"o2_efficiency"`
 }
 
 type Otolith struct {
@@ -105,7 +105,6 @@ type BlastResult struct {
 
 func main() {
 	var err error
-	// Use environment variable for Docker, fallback for local
 	connStr := os.Getenv("DATABASE_URL")
 	if connStr == "" {
 		connStr = "host=localhost user=postgres password=paradoxxDB2025 dbname=postgres sslmode=disable"
@@ -117,7 +116,6 @@ func main() {
 	}
 	defer db.Close()
 
-	// Wait for DB to be ready
 	for i := 0; i < 10; i++ {
 		err = db.Ping()
 		if err == nil {
@@ -130,7 +128,6 @@ func main() {
 		log.Fatal("Could not connect to database:", err)
 	}
 
-	// Register Routes
 	http.HandleFunc("/api/filters/classes", getClasses)
 	http.HandleFunc("/api/filters/regions", getRegions)
 	http.HandleFunc("/api/filters/conservation-status", getConservationStatuses)
@@ -221,7 +218,6 @@ func getConservationStatuses(w http.ResponseWriter, r *http.Request) {
 }
 
 func getSpecies(w http.ResponseWriter, r *http.Request) {
-	// Base query fields
 	selectFields := `
 		s.id, 
 		COALESCE(s.vernacularname, ''), 
@@ -263,17 +259,13 @@ func getSpecies(w http.ResponseWriter, r *http.Request) {
 		COALESCE(s.metabolic_rate, 0),
 		COALESCE(s.o2_efficiency, 0)`
 
-	// Start constructing the query
-	// We use an alias 's' for species_data so we can join easily if needed
 	baseQuery := "SELECT DISTINCT " + selectFields + " FROM species_data s"
 	joinClause := ""
 	whereClauses := []string{"1=1"}
 	args := []interface{}{}
 	argCount := 1
 
-	// --- Check Filters ---
-
-	// Region Filter (Requires JOIN)
+	// Region Filter
 	if region := r.URL.Query().Get("region"); region != "" {
 		joinClause = " INNER JOIN occurrence_data o ON s.id = o.species_id"
 		whereClauses = append(whereClauses, "o.region = $"+strconv.Itoa(argCount))
@@ -281,13 +273,12 @@ func getSpecies(w http.ResponseWriter, r *http.Request) {
 		argCount++
 	}
 
-	// Time Filter (Requires JOIN)
+	// Time Filter - FIXED: Now using parameterized query
 	if timeFilter := r.URL.Query().Get("time"); timeFilter != "" {
-		// Only add JOIN if we haven't already added it for Region
 		if joinClause == "" {
 			joinClause = " INNER JOIN occurrence_data o ON s.id = o.species_id"
 		}
-		
+
 		now := time.Now()
 		var dateStr string
 		switch timeFilter {
@@ -304,23 +295,27 @@ func getSpecies(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if dateStr != "" {
-			whereClauses = append(whereClauses, "o.eventdate >= '"+dateStr+"'")
+			whereClauses = append(whereClauses, "o.eventdate >= $"+strconv.Itoa(argCount))
+			args = append(args, dateStr)
+			argCount++
 		}
 	}
 
-	// Standard Filters
+	// Class Filter
 	if class := r.URL.Query().Get("class"); class != "" {
 		whereClauses = append(whereClauses, "s.class = $"+strconv.Itoa(argCount))
 		args = append(args, class)
 		argCount++
 	}
 
+	// Conservation Status Filter
 	if status := r.URL.Query().Get("conservation_status"); status != "" {
 		whereClauses = append(whereClauses, "s.conservation_status = $"+strconv.Itoa(argCount))
 		args = append(args, status)
 		argCount++
 	}
 
+	// Depth Range Filters
 	if minDepth := r.URL.Query().Get("min_depth"); minDepth != "" {
 		whereClauses = append(whereClauses, "s.depth_range_min >= $"+strconv.Itoa(argCount))
 		args = append(args, minDepth)
@@ -333,13 +328,13 @@ func getSpecies(w http.ResponseWriter, r *http.Request) {
 		argCount++
 	}
 
+	// Search Filter
 	if search := r.URL.Query().Get("search"); search != "" {
 		whereClauses = append(whereClauses, "(s.vernacularname ILIKE $"+strconv.Itoa(argCount)+" OR s.scientific_name ILIKE $"+strconv.Itoa(argCount)+")")
 		args = append(args, "%"+search+"%")
 		argCount++
 	}
 
-	// Assemble final query
 	finalQuery := baseQuery + joinClause + " WHERE " + strings.Join(whereClauses, " AND ")
 
 	rows, err := db.Query(finalQuery, args...)
@@ -467,7 +462,6 @@ func getLatestSighting(w http.ResponseWriter, r *http.Request) {
 	speciesID := strings.TrimPrefix(r.URL.Path, "/api/latest-sighting/")
 	var sighting LatestSighting
 
-	// FIXED: Added COALESCE to waterdepth_m to prevent crashes on NULL values
 	err := db.QueryRow("SELECT eventdate, region, COALESCE(waterdepth_m, 0), recordedby FROM occurrence_data WHERE species_id = $1 ORDER BY eventdate DESC LIMIT 1", speciesID).Scan(&sighting.Date, &sighting.Location, &sighting.WaterDepth, &sighting.RecordedBy)
 
 	if err != nil {
@@ -511,10 +505,6 @@ func handleBlast(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 
-
-[Image of HTTP Request Response Cycle]
- - The frontend waits here while we talk to NCBI
 	rid, err := submitToNCBI(sequence)
 	if err != nil {
 		http.Error(w, "Failed to submit to NCBI: "+err.Error(), http.StatusBadGateway)
@@ -575,9 +565,8 @@ func submitToNCBI(sequence string) (string, error) {
 	data.Set("PROGRAM", "blastn")
 	data.Set("DATABASE", "nt")
 	data.Set("QUERY", sequence)
-	// Important: NCBI requires these to contact you if you abuse the API
-	data.Set("tool", "FishSpeciesDB") 
-	data.Set("email", "admin@localhost") 
+	data.Set("tool", "FishSpeciesDB")
+	data.Set("email", "admin@localhost")
 
 	resp, err := http.PostForm(apiURL, data)
 	if err != nil {
