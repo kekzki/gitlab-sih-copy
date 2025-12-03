@@ -18,50 +18,50 @@ import (
 	_ "github.com/lib/pq"
 )
 
-var db *sql.DB
+var db *sql.DB // This is the single, correct global declaration
 
 // --- Structs ---
 
 type Species struct {
-	ID                  int      `json:"id"`
-	VernacularName      string   `json:"vernacular_name"`
-	ScientificName      string   `json:"scientific_name"`
-	ImageURLs           []string `json:"image_urls"`
-	Kingdom             string   `json:"kingdom"`
-	Phylum              string   `json:"phylum"`
-	Class               string   `json:"class"`
-	Order               string   `json:"order"`
-	Family              string   `json:"family"`
-	Genus               string   `json:"genus"`
-	Species             string   `json:"species"`
-	HabitatType         string   `json:"habitat_type"`
-	Diet                string   `json:"diet"`
-	ReportedRegions     []string `json:"reported_regions"`
-	MaxLengthCm         float64  `json:"max_length_cm"`
-	MaxWeightKg         float64  `json:"max_weight_kg"`
-	MaxAgeYears         float64  `json:"max_age_years"`
-	AgeOfMaturityYears  float64  `json:"age_of_maturity_years"`
-	DepthRangeMin       float64  `json:"depth_range_min"`
-	DepthRangeMax       float64  `json:"depth_range_max"`
-	ConservationStatus  string   `json:"conservation_status"`
-	Fecundity           string   `json:"fecundity"`
-	SpawningSeason      string   `json:"spawning_season"`
-	MaturitySize        float64  `json:"maturity_size"`
-	SexRatio            string   `json:"sex_ratio"`
-	Recruitment         string   `json:"recruitment"`
-	MortalityRate       float64  `json:"mortality_rate"`
-	Longevity           float64  `json:"longevity"`
-	DietComposition     string   `json:"diet_composition"`
-	TrophicLevel        float64  `json:"trophic_level"`
-	LarvalSurvival      float64  `json:"larval_survival"`
-	LarvalDuration      string   `json:"larval_duration"`
+	ID                 int      `json:"id"`
+	VernacularName     string   `json:"vernacular_name"`
+	ScientificName     string   `json:"scientific_name"`
+	ImageURLs          []string `json:"image_urls"`
+	Kingdom            string   `json:"kingdom"`
+	Phylum             string   `json:"phylum"`
+	Class              string   `json:"class"`
+	Order              string   `json:"order"`
+	Family             string   `json:"family"`
+	Genus              string   `json:"genus"`
+	Species            string   `json:"species"`
+	HabitatType        string   `json:"habitat_type"`
+	Diet               string   `json:"diet"`
+	ReportedRegions    []string `json:"reported_regions"`
+	MaxLengthCm        float64  `json:"max_length_cm"`
+	MaxWeightKg        float64  `json:"max_weight_kg"`
+	MaxAgeYears        float64  `json:"max_age_years"`
+	AgeOfMaturityYears float64  `json:"age_of_maturity_years"`
+	DepthRangeMin      float64  `json:"depth_range_min"`
+	DepthRangeMax      float64  `json:"depth_range_max"`
+	ConservationStatus string   `json:"conservation_status"`
+	Fecundity          string   `json:"fecundity"`
+	SpawningSeason     string   `json:"spawning_season"`
+	MaturitySize       float64  `json:"maturity_size"`
+	SexRatio           string   `json:"sex_ratio"`
+	Recruitment        string   `json:"recruitment"`
+	MortalityRate      float64  `json:"mortality_rate"`
+	Longevity          float64  `json:"longevity"`
+	DietComposition    string   `json:"diet_composition"`
+	TrophicLevel       float64  `json:"trophic_level"`
+	LarvalSurvival     float64  `json:"larval_survival"`
+	LarvalDuration     string   `json:"larval_duration"`
 	MetamorphosisTiming string   `json:"metamorphosis_timing"`
-	MigrationPatterns   string   `json:"migration_patterns"`
-	HabitatPreference   string   `json:"habitat_preference"`
-	ThermalTolerance    string   `json:"thermal_tolerance"`
-	SalinityTolerance   string   `json:"salinity_tolerance"`
-	MetabolicRate       float64  `json:"metabolic_rate"`
-	O2Efficiency        float64  `json:"o2_efficiency"`
+	MigrationPatterns  string   `json:"migration_patterns"`
+	HabitatPreference  string   `json:"habitat_preference"`
+	ThermalTolerance   string   `json:"thermal_tolerance"`
+	SalinityTolerance  string   `json:"salinity_tolerance"`
+	MetabolicRate      float64  `json:"metabolic_rate"`
+	O2Efficiency       float64  `json:"o2_efficiency"`
 }
 
 type Otolith struct {
@@ -107,8 +107,8 @@ func main() {
 	var err error
 	connStr := os.Getenv("DATABASE_URL")
 	if connStr == "" {
-  log.Fatal("DATABASE_URL environment variable not set. Cannot connect to database.")
-}
+		log.Fatal("DATABASE_URL environment variable not set. Cannot connect to database.")
+	}
 
 	db, err = sql.Open("postgres", connStr)
 	if err != nil {
@@ -156,7 +156,7 @@ func enableCORS(next http.Handler) http.Handler {
 }
 
 // --- Handlers ---
-
+// ... (All handler functions remain unchanged as they were correct) ...
 func getClasses(w http.ResponseWriter, r *http.Request) {
 	rows, err := db.Query("SELECT DISTINCT class FROM species_data WHERE class IS NOT NULL ORDER BY class")
 	if err != nil {
