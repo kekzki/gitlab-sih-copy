@@ -1,23 +1,26 @@
-# --- File: frontend/Dockerfile (FINAL VERSION) ---
+# --- File: frontend/Dockerfile (FINAL, FINAL VERSION) ---
 
 # Stage 1: Build the static assets
 FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# 1. Clear cache before installing dependencies
+RUN npm cache clean --force
+
 # Copy package.json and install dependencies
-# Note: Using --force may be necessary for some Vite/Tailwind dependency conflicts
 COPY package*.json ./
+
+# 2. First install with legacy flag
 RUN npm install --legacy-peer-deps
 
-# Fix Rollup/Vite Native Dependency Conflict (Specific to Alpine/musl)
-# This removes the built modules and forces a clean install, which resolves the musl linking issue.
+# 3. Clean and second install to fix native modules
 RUN rm -rf node_modules
 RUN npm install
 
 # Copy source code and build the project
 COPY . .
-# Build the project (Assuming your package.json has a 'build' script)
+# Build the project (This should now work)
 RUN npm run build 
 
 # Stage 2: Serve the application using Nginx
