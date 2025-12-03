@@ -1,34 +1,26 @@
-# --- File: frontend/Dockerfile (ABSOLUTELY FINAL VERSION) ---
+# --- File: frontend/Dockerfile (FINAL, PERMANENT FIX) ---
 
-# Stage 1: Build the static assets
-FROM node:20-alpine AS builder
+# Stage 1: Build the static assets using Debian-based Node for stability
+# Switching from 'alpine' to 'slim' prevents the musl/native dependency error.
+FROM node:20-slim AS builder 
 
 WORKDIR /app
 
-# 1. Clear cache and copy dependencies
-RUN npm cache clean --force
+# Copy package.json and install dependencies (no need for cache clean or double install now)
 COPY package*.json ./
-
-# 2. First install with legacy flag
-RUN npm install --legacy-peer-deps
-
-# 3. Clean and second install to resolve core modules
-RUN rm -rf node_modules
-RUN npm install
-
-# 4. MANUAL FIX: Force rebuild Rollup and other native modules
-# This addresses the Rollup Linux Musl error by manually running the build script for the package.
-RUN npx rollup --help || echo "Rollup binary successfully installed or path issue bypassed."
+# Use --force to overcome any peer dependency conflicts specific to your packages
+RUN npm install --force 
 
 # Copy source code and build the project
 COPY . .
-# Build the project (This should now work)
+# Build the project 
 RUN npm run build 
 
-# Stage 2: Serve the application using Nginx
+# Stage 2: Serve the application using Nginx (keep Alpine for the small runtime image)
 FROM nginx:alpine
 
 # Copy the built assets from the builder stage to the Nginx serving directory
+# The output is still the small, static build in /app/dist
 COPY --from=builder /app/dist /usr/share/nginx/html
 
 # Expose the standard HTTP port
