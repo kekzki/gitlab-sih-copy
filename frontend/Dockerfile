@@ -1,23 +1,21 @@
-# --- File: frontend/Dockerfile (FINAL, RELIABLE VERSION) ---
+# --- File: frontend/Dockerfile (Simplified and Final) ---
 
 # Stage 1: Build the static assets using Debian-based Node for stability
 FROM node:20-slim AS builder 
 
 WORKDIR /app
 
-# 1. Copy ALL files FIRST, including package.json and source code.
-# This avoids confusion about which environment to install packages for.
-COPY package*.json ./
+# 1. Copy ALL files (source code, package.json, etc.)
+# .dockerignore prevents node_modules/ and package-lock.json from being copied.
 COPY . .
 
-# 2. Run ONE single, definitive installation after files are copied.
-# We include --force to prevent peer dependency conflicts.
+# 2. Install dependencies (Node will perform a clean, Linux-native install)
 RUN npm install --force 
 
 # 3. Build the project 
 RUN npm run build 
 
-# Stage 2: Serve the application using Nginx (keep Alpine for the small runtime image)
+# Stage 2: Serve the application using Nginx 
 FROM nginx:alpine
 
 # Copy the built assets from the builder stage to the Nginx serving directory
