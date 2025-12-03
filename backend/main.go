@@ -107,8 +107,8 @@ func main() {
 	var err error
 	connStr := os.Getenv("DATABASE_URL")
 	if connStr == "" {
-		connStr = "host=localhost user=postgres password=paradoxxDB2025 dbname=postgres sslmode=disable"
-	}
+  log.Fatal("DATABASE_URL environment variable not set. Cannot connect to database.")
+}
 
 	db, err = sql.Open("postgres", connStr)
 	if err != nil {

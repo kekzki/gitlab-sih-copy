@@ -1,0 +1,30 @@
+version: "3.8"
+
+services:
+  backend:
+    # Instructions to build the image from the Dockerfile in the 'backend' folder
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+
+    # Expose the port used by the Go app
+    ports:
+      - "8080"
+
+    # Environment variables: Dokploy automatically sets ${DB_URL} when you link the database
+    environment:
+      DATABASE_URL: ${DB_URL}
+
+    restart: always
+
+  frontend:
+    # Instructions to build the image from the Dockerfile in the 'frontend' folder
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+
+    # Expose the port used by Nginx
+    ports:
+      - "80"
+
+    restart: always
