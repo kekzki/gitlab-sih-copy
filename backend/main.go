@@ -101,6 +101,60 @@ type BlastResult struct {
 	BitScore     float64 `json:"bit_score"`
 }
 
+type OceanographicParameter struct {
+	ID                        int     `json:"id"`
+	EventDate                 string  `json:"event_date"`
+	Region                    string  `json:"region"`
+	PHLevel                   float64 `json:"ph_level"`
+	DissolvedOxygen           float64 `json:"dissolved_oxygen"`
+	CO2Concentration          float64 `json:"co2_concentration"`
+	TotalAlkalinity           float64 `json:"total_alkalinity"`
+	Phytoplankton             float64 `json:"phytoplankton"`
+	Zooplankton               float64 `json:"zooplankton"`
+	ChlorophyllA              float64 `json:"chlorophyll_a"`
+	PZRatio                   float64 `json:"pz_ratio"`
+	SST                       float64 `json:"sst"`
+	Salinity                  float64 `json:"salinity"`
+	MinimumDepth              float64 `json:"minimum_depth"`
+	CurrentVelocity           float64 `json:"current_velocity"`
+	WaveHeight                float64 `json:"wave_height"`
+	ThermoclineDepth          float64 `json:"thermocline_depth"`
+	UpwellingIntensity        float64 `json:"upwelling_intensity"`
+	MonsoonIntensity          float64 `json:"monsoon_intensity"`
+	SSTAnomaly                float64 `json:"sst_anomaly"`
+	ElNinoIndex               float64 `json:"el_nino_index"`
+	Ammonium                  float64 `json:"ammonium"`
+	Nitrate                   float64 `json:"nitrate"`
+	Phosphate                 float64 `json:"phosphate"`
+	Silicate                  float64 `json:"silicate"`
+	NPRatio                   float64 `json:"np_ratio"`
+	PlasticDebris             float64 `json:"plastic_debris"`
+	OilContamination          float64 `json:"oil_contamination"`
+	HeavyMetals               float64 `json:"heavy_metals"`
+	Pesticides                float64 `json:"pesticides"`
+}
+
+type BiodiversityMetric struct {
+	Year                int     `json:"year"`
+	Month               int     `json:"month"`
+	Region              string  `json:"region"`
+	SpeciesRichness     float64 `json:"species_richness"`
+	EstimatedRichness   float64 `json:"estimated_richness"`
+	ShannonIndex        float64 `json:"shannon_index"`
+	SimpsonIndex        float64 `json:"simpson_index"`
+	Evenness            float64 `json:"evenness"`
+	FunctionalDiversity float64 `json:"functional_diversity"`
+	TaxonomicDiversity  float64 `json:"taxonomic_diversity"`
+}
+
+type AbundanceData struct {
+	EventDate           string  `json:"event_date"`
+	TotalAbundance      float64 `json:"total_abundance"`
+	JuvenileAdultRatio  float64 `json:"juvenile_adult_ratio"`
+	JuvenileAbundance   float64 `json:"juvenile_abundance"`
+	AdultAbundance      float64 `json:"adult_abundance"`
+}
+
 // --- Main & Routes ---
 
 func main() {
@@ -136,6 +190,12 @@ func main() {
 	http.HandleFunc("/api/otoliths", getOtoliths)
 	http.HandleFunc("/api/latest-sighting/", getLatestSighting)
 	http.HandleFunc("/api/blast", handleBlast)
+	http.HandleFunc("/api/oceanographic/regions", getOceanographicRegions)
+	http.HandleFunc("/api/oceanographic/parameters", getOceanographicParameters)
+	http.HandleFunc("/api/oceanographic/environmental-health", getEnvironmentalHealth)
+	http.HandleFunc("/api/biodiversity/metrics", getBiodiversityMetrics)
+	http.HandleFunc("/api/marine-trends/species-list", getSpeciesList)
+	http.HandleFunc("/api/marine-trends/abundance", getAbundanceData)
 
 	log.Println("Server starting on :8080")
 	log.Fatal(http.ListenAndServe(":8080", enableCORS(http.DefaultServeMux)))
@@ -556,6 +616,366 @@ func extractSequence(fasta string) string {
 		sequence.WriteString(line)
 	}
 	return sequence.String()
+}
+
+// --- Oceanographic Handlers ---
+
+func getOceanographicRegions(w http.ResponseWriter, r *http.Request) {
+	rows, err := db.Query("SELECT DISTINCT region FROM oceanographic_parameters WHERE region IS NOT NULL ORDER BY region")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	var regions []string
+	for rows.Next() {
+		var region string
+		if err := rows.Scan(&region); err != nil {
+			continue
+		}
+		regions = append(regions, region)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(regions)
+}
+
+func getOceanographicParameters(w http.ResponseWriter, r *http.Request) {
+	query := `SELECT 
+		id,
+		eventdate,
+		COALESCE(region, ''),
+		COALESCE(phlevel, 0),
+		COALESCE(dissolvedoxygen_milligramsperlitre, 0),
+		COALESCE(co2_microatm, 0),
+		COALESCE(alkalinity_micromolperkilogram, 0),
+		COALESCE(phytoplankton_cellsperlitre, 0),
+		COALESCE(zooplankton_cellsperlitre, 0),
+		COALESCE(chlorophyll_a_microgramperlitre, 0),
+		COALESCE(pz_ratio, 0),
+		COALESCE(sst_degreecelsius, 0),
+		COALESCE(salinity_psu, 0),
+		COALESCE(minimumdepthinmeters, 0),
+		COALESCE(currentvelocity_meterspersecond, 0),
+		COALESCE(waveheight_meters, 0),
+		COALESCE(thermoclinedepth_meters, 0),
+		COALESCE(upwellingintensity_centimeterspersecond, 0),
+		COALESCE(monsoonintensity_millimetersperday, 0),
+		COALESCE(sealevelanomalies_meters, 0),
+		COALESCE(elninoindex_oni, 0),
+		COALESCE(ammonium_micromolperlitre, 0),
+		COALESCE(nitrate_micromolperlitre, 0),
+		COALESCE(phosphate_micromolperlitre, 0),
+		COALESCE(silicate_micromolperlitre, 0),
+		COALESCE(np_ratio, 0),
+		COALESCE(plasticdebris_pcsperkilometersquared, 0),
+		COALESCE(oilcontamination_microgramsperlitre, 0),
+		COALESCE(heavymetals_nanogramsperlitre, 0),
+		COALESCE(pesticides_nanogramsperlitre, 0)
+		FROM oceanographic_parameters WHERE 1=1`
+
+	args := []interface{}{}
+	argCount := 1
+
+	// Region filter
+	if region := r.URL.Query().Get("region"); region != "" {
+		query += " AND region = $" + strconv.Itoa(argCount)
+		args = append(args, region)
+		argCount++
+	}
+
+	// Date range filters
+	if startDate := r.URL.Query().Get("start_date"); startDate != "" {
+		query += " AND eventdate >= $" + strconv.Itoa(argCount)
+		args = append(args, startDate)
+		argCount++
+	}
+
+	if endDate := r.URL.Query().Get("end_date"); endDate != "" {
+		query += " AND eventdate <= $" + strconv.Itoa(argCount)
+		args = append(args, endDate)
+		argCount++
+	}
+
+	// Category filter
+	category := r.URL.Query().Get("category")
+
+	query += " ORDER BY eventdate"
+
+	rows, err := db.Query(query, args...)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	var parameters []OceanographicParameter
+	for rows.Next() {
+		var p OceanographicParameter
+		err := rows.Scan(
+			&p.ID, &p.EventDate, &p.Region,
+			&p.PHLevel, &p.DissolvedOxygen, &p.CO2Concentration, &p.TotalAlkalinity,
+			&p.Phytoplankton, &p.Zooplankton, &p.ChlorophyllA, &p.PZRatio,
+			&p.SST, &p.Salinity, &p.MinimumDepth, &p.CurrentVelocity, &p.WaveHeight,
+			&p.ThermoclineDepth, &p.UpwellingIntensity, &p.MonsoonIntensity,
+			&p.SSTAnomaly, &p.ElNinoIndex, &p.Ammonium,
+			&p.Nitrate, &p.Phosphate, &p.Silicate, &p.NPRatio,
+			&p.PlasticDebris, &p.OilContamination, &p.HeavyMetals, &p.Pesticides,
+		)
+		if err != nil {
+			continue
+		}
+
+		// Filter by category if specified
+		if category != "" {
+			filteredParam := filterByCategory(p, category)
+			parameters = append(parameters, filteredParam)
+		} else {
+			parameters = append(parameters, p)
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(parameters)
+}
+
+func filterByCategory(p OceanographicParameter, category string) OceanographicParameter {
+	filtered := OceanographicParameter{
+		ID:        p.ID,
+		EventDate: p.EventDate,
+		Region:    p.Region,
+	}
+
+	switch strings.ToLower(category) {
+	case "biochemical":
+		filtered.PHLevel = p.PHLevel
+		filtered.DissolvedOxygen = p.DissolvedOxygen
+		filtered.CO2Concentration = p.CO2Concentration
+		filtered.TotalAlkalinity = p.TotalAlkalinity
+	case "ecological":
+		filtered.Phytoplankton = p.Phytoplankton
+		filtered.Zooplankton = p.Zooplankton
+		filtered.ChlorophyllA = p.ChlorophyllA
+		filtered.PZRatio = p.PZRatio
+	case "human impact":
+		filtered.PlasticDebris = p.PlasticDebris
+		filtered.OilContamination = p.OilContamination
+		filtered.HeavyMetals = p.HeavyMetals
+		filtered.Pesticides = p.Pesticides
+	case "physical oceanography":
+		filtered.SST = p.SST
+		filtered.Salinity = p.Salinity
+		filtered.MinimumDepth = p.MinimumDepth
+		filtered.CurrentVelocity = p.CurrentVelocity
+		filtered.WaveHeight = p.WaveHeight
+		filtered.ThermoclineDepth = p.ThermoclineDepth
+		filtered.UpwellingIntensity = p.UpwellingIntensity
+		filtered.MonsoonIntensity = p.MonsoonIntensity
+	case "climate change":
+		filtered.SSTAnomaly = p.SSTAnomaly
+		filtered.ElNinoIndex = p.ElNinoIndex
+		filtered.Ammonium = p.Ammonium
+	case "nutrient dynamics":
+		filtered.Nitrate = p.Nitrate
+		filtered.Phosphate = p.Phosphate
+		filtered.Silicate = p.Silicate
+		filtered.NPRatio = p.NPRatio
+	default:
+		return p
+	}
+
+	return filtered
+}
+
+func getEnvironmentalHealth(w http.ResponseWriter, r *http.Request) {
+	query := `SELECT 
+		eventdate,
+		COALESCE(plasticdebris_pcsperkilometersquared, 0),
+		COALESCE(oilcontamination_microgramsperlitre, 0),
+		COALESCE(heavymetals_nanogramsperlitre, 0),
+		COALESCE(pesticides_nanogramsperlitre, 0)
+		FROM oceanographic_parameters`
+
+	args := []interface{}{}
+	argCount := 1
+	whereClauses := []string{}
+
+	if region := r.URL.Query().Get("region"); region != "" {
+		whereClauses = append(whereClauses, "region = $"+strconv.Itoa(argCount))
+		args = append(args, region)
+		argCount++
+	}
+
+	if len(whereClauses) > 0 {
+		query += " WHERE " + strings.Join(whereClauses, " AND ")
+	}
+
+	query += " ORDER BY eventdate DESC LIMIT 1"
+
+	var eventDate string
+	var plasticDebris, oilContamination, heavyMetals, pesticides float64
+
+	err := db.QueryRow(query, args...).Scan(&eventDate, &plasticDebris, &oilContamination, &heavyMetals, &pesticides)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	result := map[string]interface{}{
+		"event_date":        eventDate,
+		"plastic_debris":    plasticDebris,
+		"oil_contamination": oilContamination,
+		"heavy_metals":      heavyMetals,
+		"pesticides":        pesticides,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(result)
+}
+
+// --- Biodiversity Handlers ---
+
+func getBiodiversityMetrics(w http.ResponseWriter, r *http.Request) {
+	query := `SELECT 
+		year,
+		month,
+		COALESCE(region, ''),
+		COALESCE(species_richness, 0),
+		COALESCE(estimated_richness, 0),
+		COALESCE(shannon_index, 0),
+		COALESCE(simpson_index, 0),
+		COALESCE(evenness, 0),
+		COALESCE(functional_diversity, 0),
+		COALESCE(taxonomic_diversity, 0)
+		FROM biodiversity_metrics WHERE 1=1`
+
+	args := []interface{}{}
+	argCount := 1
+
+	if region := r.URL.Query().Get("region"); region != "" {
+		query += " AND region = $" + strconv.Itoa(argCount)
+		args = append(args, region)
+		argCount++
+	}
+
+	if startYear := r.URL.Query().Get("start_year"); startYear != "" {
+		query += " AND year >= $" + strconv.Itoa(argCount)
+		args = append(args, startYear)
+		argCount++
+	}
+
+	if endYear := r.URL.Query().Get("end_year"); endYear != "" {
+		query += " AND year <= $" + strconv.Itoa(argCount)
+		args = append(args, endYear)
+		argCount++
+	}
+
+	query += " ORDER BY year, month"
+
+	rows, err := db.Query(query, args...)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	var metrics []BiodiversityMetric
+	for rows.Next() {
+		var m BiodiversityMetric
+		err := rows.Scan(&m.Year, &m.Month, &m.Region, &m.SpeciesRichness, &m.EstimatedRichness,
+			&m.ShannonIndex, &m.SimpsonIndex, &m.Evenness, &m.FunctionalDiversity, &m.TaxonomicDiversity)
+		if err != nil {
+			continue
+		}
+		metrics = append(metrics, m)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(metrics)
+}
+
+// --- Marine Trends Handlers ---
+
+func getSpeciesList(w http.ResponseWriter, r *http.Request) {
+	rows, err := db.Query("SELECT DISTINCT scientific_name FROM species_data WHERE scientific_name IS NOT NULL ORDER BY scientific_name")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	var speciesList []string
+	for rows.Next() {
+		var species string
+		if err := rows.Scan(&species); err != nil {
+			continue
+		}
+		speciesList = append(speciesList, species)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(speciesList)
+}
+
+func getAbundanceData(w http.ResponseWriter, r *http.Request) {
+	query := `SELECT 
+		o.eventdate,
+		COALESCE(o.total_abundance, 0),
+		COALESCE(o.juvenile_adult_ratio, 0),
+		COALESCE(o.juvenile_abundance, 0),
+		COALESCE(o.adult_abundance, 0)
+		FROM occurrence_data o
+		INNER JOIN species_data s ON o.species_id = s.id
+		WHERE 1=1`
+
+	args := []interface{}{}
+	argCount := 1
+
+	if species := r.URL.Query().Get("species"); species != "" {
+		query += " AND s.scientific_name = $" + strconv.Itoa(argCount)
+		args = append(args, species)
+		argCount++
+	}
+
+	if region := r.URL.Query().Get("region"); region != "" {
+		query += " AND o.region = $" + strconv.Itoa(argCount)
+		args = append(args, region)
+		argCount++
+	}
+
+	if startDate := r.URL.Query().Get("start_date"); startDate != "" {
+		query += " AND o.eventdate >= $" + strconv.Itoa(argCount)
+		args = append(args, startDate)
+		argCount++
+	}
+
+	if endDate := r.URL.Query().Get("end_date"); endDate != "" {
+		query += " AND o.eventdate <= $" + strconv.Itoa(argCount)
+		args = append(args, endDate)
+		argCount++
+	}
+
+	query += " ORDER BY o.eventdate"
+
+	rows, err := db.Query(query, args...)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	var abundanceData []AbundanceData
+	for rows.Next() {
+		var a AbundanceData
+		err := rows.Scan(&a.EventDate, &a.TotalAbundance, &a.JuvenileAdultRatio, &a.JuvenileAbundance, &a.AdultAbundance)
+		if err != nil {
+			continue
+		}
+		abundanceData = append(abundanceData, a)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(abundanceData)
 }
 
 func submitToNCBI(sequence string) (string, error) {
