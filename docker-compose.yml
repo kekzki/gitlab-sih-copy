@@ -2,29 +2,19 @@ version: "3.8"
 
 services:
   backend:
-    # Instructions to build the image from the Dockerfile in the 'backend' folder
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    # ❌ Removed: build:
+    image: kekzki/sih-paradoxx6-backend:v1.0.0
 
-    # Expose the port used by the Go app
     ports:
       - "8080"
-
-    # Environment variables: Dokploy automatically sets ${DB_URL} when you link the database
     environment:
+      # This variable is supplied by Dokply when you link the PostgreSQL resource
       DATABASE_URL: ${DB_URL}
-
     restart: always
 
   frontend:
-    # Instructions to build the image from the Dockerfile in the 'frontend' folder
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-
-    # Expose the port used by Nginx
+    # ❌ Removed: build:
+    image: kekzki/sih-paradoxx6-frontend:v1.0.0
     ports:
       - "80"
-
     restart: always
