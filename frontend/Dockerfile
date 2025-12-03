@@ -1,26 +1,26 @@
-# --- File: frontend/Dockerfile (FINAL, PERMANENT FIX) ---
+# --- File: frontend/Dockerfile (FINAL, RELIABLE VERSION) ---
 
 # Stage 1: Build the static assets using Debian-based Node for stability
-# Switching from 'alpine' to 'slim' prevents the musl/native dependency error.
 FROM node:20-slim AS builder 
 
 WORKDIR /app
 
-# Copy package.json and install dependencies (no need for cache clean or double install now)
+# 1. Copy ALL files FIRST, including package.json and source code.
+# This avoids confusion about which environment to install packages for.
 COPY package*.json ./
-# Use --force to overcome any peer dependency conflicts specific to your packages
+COPY . .
+
+# 2. Run ONE single, definitive installation after files are copied.
+# We include --force to prevent peer dependency conflicts.
 RUN npm install --force 
 
-# Copy source code and build the project
-COPY . .
-# Build the project 
+# 3. Build the project 
 RUN npm run build 
 
 # Stage 2: Serve the application using Nginx (keep Alpine for the small runtime image)
 FROM nginx:alpine
 
 # Copy the built assets from the builder stage to the Nginx serving directory
-# The output is still the small, static build in /app/dist
 COPY --from=builder /app/dist /usr/share/nginx/html
 
 # Expose the standard HTTP port
