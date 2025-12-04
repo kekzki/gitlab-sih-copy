@@ -3,8 +3,8 @@ version: "3.8"
 services:
   frontend:
     build:
-      context: .
-      dockerfile: frontend/Dockerfile
+      context: ./frontend
+      dockerfile: Dockerfile
     networks:
       - dokploy-network
     environment:
@@ -12,8 +12,8 @@ services:
 
   backend:
     build:
-      context: .
-      dockerfile: backend/Dockerfile
+      context: ./backend
+      dockerfile: Dockerfile
     networks:
       - dokploy-network
     environment:
