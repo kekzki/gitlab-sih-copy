@@ -3,11 +3,17 @@ FROM node:20-alpine AS build
 
 WORKDIR /app
 
+ARG VITE_SUPABASE_URL
+ARG VITE_SUPABASE_ANON_KEY
+
 COPY package*.json ./
 
 RUN npm install
 
 COPY . .
+
+ENV VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
+ENV VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
 
 RUN echo "Rebuild frontend at $ (date)"
 
