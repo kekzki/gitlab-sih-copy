@@ -18,7 +18,7 @@ services:
       - dokploy-network
     environment:
       - NODE_ENV=production
-      - DB_HOST=db
+      - DATABASE_URL=postgres://user:${DB_PASSWORD}@db:5432/myappdb?sslmode=disable
       - JWT_SECRET=${JWT_SECRET}
 
   db:
