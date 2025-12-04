@@ -1,20 +1,47 @@
 version: "3.8"
-
 services:
-  backend:
-    # ❌ Removed: build:
-    image: kekzki/sih-paradoxx6-backend:v1.0.0
-
-    ports:
-      - "8080"
-    environment:
-      # This variable is supplied by Dokply when you link the PostgreSQL resource
-      DATABASE_URL: ${DB_URL}
-    restart: always
-
   frontend:
-    # ❌ Removed: build:
-    image: kekzki/sih-paradoxx6-frontend:v1.0.0
-    ports:
-      - "80"
-    restart: always
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile folder
+    networks:
+      - dokploy-network
+    labels:
+      - "traefik.enable=true"
+      # Replace 'your-frontend-domain.com' with your actual domain
+      - "traefik.http.routers.frontend-app.rule=Host(`your-frontend-domain.com`)"
+      - "traefik.http.services.frontend-app.loadbalancer.server.port=80"
+    environment:
+      - VITE_API_URL=${VITE_API_URL}
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    networks:
+      - dokploy-network
+    labels:
+      - "traefik.enable=true"
+      # Replace 'api.your-domain.com' with your actual API domain/subdomain
+      - "traefik.http.routers.backend-api.rule=Host(`api.your-domain.com`)"
+      - "traefik.http.services.backend-api.loadbalancer.server.port=3000"
+    environment:
+      - NODE_ENV=production
+      - DB_HOST=db
+      - JWT_SECRET=${JWT_SECRET} #
+
+  db:
+    image: postgres:16-alpine
+    networks:
+      - dokploy-network
+
+    volumes:
+      - ../files/db-data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: myappdb
+
+networks:
+  dokploy-network:
+    external: true
