@@ -3,7 +3,7 @@ services:
   frontend:
     build:
       context: .
-      dockerfile: frontend/Dockerfile folder
+      dockerfile: frontend/Dockerfile
     networks:
       - dokploy-network
     labels:
