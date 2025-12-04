@@ -9,6 +9,8 @@ RUN npm install
 
 COPY . .
 
+RUN echo "Rebuild frontend at $ (date)"
+
 RUN npm run build
 
 FROM nginx:alpine AS final
