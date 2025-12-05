@@ -1,31 +1,23 @@
-# Stage 1: Build the Go application
-FROM golang:1.21-alpine AS builder
+FROM golang:1.25-alpine AS build
 
 WORKDIR /app
 
-# Copy go.mod and go.sum (if present) to download dependencies first
-COPY go.mod .
-# If you have go.sum:
-# COPY go.sum .
-# RUN go mod download 
+COPY go.mod go.sum ./
 
-# Copy the rest of the source code
+RUN go mod download
+
 COPY . .
 
-# Build the application
-# CGO_ENABLED=0 is important for creating a statically linked binary
-RUN CGO_ENABLED=0 go build -o /app/server ./main.go
+RUN CGO_ENABLED=0 go build -o main main.go
 
-# Stage 2: Create the final minimal image
-FROM alpine:latest
+FROM alpine:latest AS final
 
-WORKDIR /app
+RUN apk --no-cache add ca-certificates
 
-# Copy the built binary from the builder stage
-COPY --from=builder /app/server .
+WORKDIR /
 
-# Expose the port your Go app listens on (8080 is standard for your main.go)
+COPY --from=build /app/main /main
+
 EXPOSE 8080
 
-# Command to run the executable
-CMD ["/app/server"]
+CMD ["/main"]
