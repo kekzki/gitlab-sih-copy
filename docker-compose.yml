@@ -29,8 +29,11 @@ services:
     image: postgres:16-alpine
     networks:
       - dokploy-network
+    ports:
+      - "5432:5432"
     volumes:
       - ../files/db-data:/var/lib/postgresql/data
+      - ./paradoxx_db.sql:/docker-entrypoint-initdb.d/init.sql
     environment:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: ${DB_PASSWORD}
