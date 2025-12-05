@@ -101,15 +101,9 @@ type BlastResult struct {
 
 func main() {
 	var err error
-	connStr := os.Getenv("postgresql://postgres:nunsz2mwnnuqvcbn@paradoxx-postgres-0rxxss:5432/postgres")
-	if connStr == "" {
-		log.Fatal("DATABASE_URL environment variable not set")
-	}
-
+	connStr := "postgres://postgres:nunsz2mwnnuqvcbn@paradoxx-postgres-0rxxss:5432/postgres?sslmode=disable"
 	db, err = sql.Open("postgres", connStr)
-	if err != nil {
-		log.Fatal(err)
-	}
+
 	defer db.Close()
 
 	for i := 0; i < 10; i++ {
@@ -755,4 +749,5 @@ func getNCBIResults(rid string) ([]BlastResult, error) {
 
 	return results, nil
 }
+
 
