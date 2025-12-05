@@ -20,25 +20,27 @@ type SpeciesInfo struct {
 
 func main() {
 	// --- 1. CONFIGURE DATABASE CONNECTION USING ENVIRONMENT VARIABLES ---
-	
+
 	// Host, User, and DB Name are fixed based on your docker-compose.yml service definition.
 	const (
-		dbhost = "db"
-		dbport = 5432
-		dbuser = "user"
-		dbname = "myappdb"
+		dbHost = "db"
+		dbPort = 5432
+		dbUser = "user"
+		dbName = "myappdb"
 	)
-	
+
 	// Read the database password from the environment variable (best practice)
-	dbpass := os.Getenv("DB_PASSWORD")
-	if dbpass == "" {
+	dbPass := os.Getenv("DB_PASSWORD")
+	if dbPass == "" {
 		fmt.Fprintf(os.Stderr, "FATAL: DB_PASSWORD environment variable is not set.\n")
 		os.Exit(1)
 	}
 
 	// lib/pq uses a simple connection string format
-	connString := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
-		dbhost, dbport, dbuser, dbpass, dbname)
+	connString := fmt.Sprintf(
+		"host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
+		dbHost, dbPort, dbUser, dbPass, dbName,
+	)
 
 	// --- 2. ESTABLISH CONNECTION (using database/sql and lib/pq) ---
 	db, err := sql.Open("postgres", connString)
@@ -55,6 +57,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Unable to connect to database (check connection details/credentials): %v\n", err)
 		os.Exit(1)
 	}
+
 	fmt.Println("Successfully connected to the database!")
 
 	// --- 3. FETCH DATA ---
