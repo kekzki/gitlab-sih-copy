@@ -1,0 +1,15 @@
+fastapi
+uvicorn[standard]
+
+torch
+segmentation-models-pytorch
+albumentations
+opencv-python
+scipy
+scikit-image
+scikit-learn
+pandas
+numpy
+matplotlib
+Pillow
+tqdm
