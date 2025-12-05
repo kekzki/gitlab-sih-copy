@@ -1,25 +1,28 @@
-# Stage 1: Build the static assets
-FROM node:20-alpine AS builder
+
+FROM node:20-alpine AS build
 
 WORKDIR /app
 
-# Copy package.json and install dependencies
-COPY frontend/package*.json ./
+ARG VITE_SUPABASE_URL
+ARG VITE_SUPABASE_ANON_KEY
+
+COPY package*.json ./
+
 RUN npm install
 
-# Copy source code and build the project
-COPY frontend/. .
-# Build the project (Assuming your package.json has a 'build' script)
-RUN npm run build 
+COPY . .
 
-# Stage 2: Serve the application using Nginx
-FROM nginx:alpine
+ENV VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
+ENV VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
 
-# Copy the built assets from the builder stage to the Nginx serving directory
-COPY --from=builder /app/dist /usr/share/nginx/html
+RUN echo "Rebuild frontend at $ (date)"
 
-# Expose the standard HTTP port
+RUN npm run build
+
+FROM nginx:alpine AS final
+
+COPY --from=build /app/dist /usr/share/nginx/html
+
 EXPOSE 80
 
-# Nginx will run by default
 CMD ["nginx", "-g", "daemon off;"]
