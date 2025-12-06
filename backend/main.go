@@ -3,11 +3,12 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"database/sql"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
+	"mime/multipart" // <--- ADDED REQUIRED PACKAGE
 	"net/http"
 	"net/url"
 	"os"
@@ -15,136 +16,145 @@ import (
 	"strings"
 	"time"
 
-	_ "github.com/lib/pq"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-var db *sql.DB
+var dbPool *pgxpool.Pool
 
 // --- Structs ---
 
 type Species struct {
-	SpeciesID  int             `json:"species_id"`
-	UploadID   int             `json:"upload_id"`
-	Data       json.RawMessage `json:"data"`
+	SpeciesID int             `json:"species_id"`
+	UploadID  int             `json:"upload_id"`
+	Data      json.RawMessage `json:"data"`
 }
 
 type OccurrenceData struct {
-	OccurrenceID string          `json:"occurrence_id"`
-	SpeciesID    int             `json:"species_id"`
-	UploadID     int             `json:"upload_id"`
-	Region       string          `json:"region"`
-	Data         json.RawMessage `json:"data"`
+	OccurrenceID string          `json:"occurrence_id"`
+	SpeciesID    int             `json:"species_id"`
+	UploadID     int             `json:"upload_id"`
+	Region       string          `json:"region"`
+	Data         json.RawMessage `json:"data"`
 }
 
 type OceanographicData struct {
-	ID       int             `json:"id"`
-	Region   string          `json:"region"`
-	UploadID int             `json:"upload_id"`
-	Data     json.RawMessage `json:"data"`
+	ID       int             `json:"id"`
+	Region   string          `json:"region"`
+	UploadID int             `json:"upload_id"`
+	Data     json.RawMessage `json:"data"`
 }
 
 type SpeciesDiversity struct {
-	ID       int             `json:"id"`
-	Region   string          `json:"region"`
-	UploadID int             `json:"upload_id"`
-	Data     json.RawMessage `json:"data"`
+	ID       int             `json:"id"`
+	Region   string          `json:"region"`
+	UploadID int             `json:"upload_id"`
+	Data     json.RawMessage `json:"data"`
 }
 
 type MonthlyAbundance struct {
-	ID        int             `json:"id"`
-	SpeciesID int             `json:"species_id"`
-	Region    string          `json:"region"`
-	UploadID  int             `json:"upload_id"`
-	Data      json.RawMessage `json:"data"`
+	ID        int             `json:"id"`
+	SpeciesID int             `json:"species_id"`
+	Region    string          `json:"region"`
+	UploadID  int             `json:"upload_id"`
+	Data      json.RawMessage `json:"data"`
 }
 
 type JuvenileAdultData struct {
-	ID        int             `json:"id"`
-	SpeciesID int             `json:"species_id"`
-	Region    string          `json:"region"`
-	UploadID  int             `json:"upload_id"`
-	Data      json.RawMessage `json:"data"`
+	ID        int             `json:"id"`
+	SpeciesID int             `json:"species_id"`
+	Region    string          `json:"region"`
+	UploadID  int             `json:"upload_id"`
+	Data      json.RawMessage `json:"data"`
 }
 
 type Otolith struct {
-	OtolithID          int     `json:"otolith_id"`
-	SpeciesID          int     `json:"species_id"`
-	EstimatedAge       int     `json:"estimated_age"`
-	RingCount          int     `json:"ring_count"`
-	AreaMm2            float64 `json:"area_mm2"`
-	PerimeterMm        float64 `json:"perimeter_mm"`
-	LengthMm           float64 `json:"length_mm"`
-	WidthMm            float64 `json:"width_mm"`
-	AspectRatio        float64 `json:"aspect_ratio"`
-	Circularity        float64 `json:"circularity"`
-	RawImageURL        string  `json:"raw_image_url"`
-	ProcessedImageURL  string  `json:"processed_image_url"`
-	UploadID           int     `json:"upload_id"`
+	OtolithID         int     `json:"otolith_id"`
+	SpeciesID         int     `json:"species_id"`
+	EstimatedAge      int     `json:"estimated_age"`
+	RingCount         int     `json:"ring_count"`
+	AreaMm2           float64 `json:"area_mm2"`
+	PerimeterMm       float64 `json:"perimeter_mm"`
+	LengthMm          float64 `json:"length_mm"`
+	WidthMm           float64 `json:"width_mm"`
+	AspectRatio       float64 `json:"aspect_ratio"`
+	Circularity       float64 `json:"circularity"`
+	RawImageURL       string  `json:"raw_image_url"`
+	ProcessedImageURL string  `json:"processed_image_url"`
+	UploadID          int     `json:"upload_id"`
 }
 
 type BlastResult struct {
-	QueryID      string  `json:"query_id"`
-	SubjectID    string  `json:"subject_id"`
-	Identity     float64 `json:"identity"`
-	AlignmentLen int     `json:"alignment_length"`
-	Mismatches   int     `json:"mismatches"`
-	GapOpens     int     `json:"gap_opens"`
-	QueryStart   int     `json:"query_start"`
-	QueryEnd     int     `json:"query_end"`
-	SubjectStart int     `json:"subject_start"`
-	SubjectEnd   int     `json:"subject_end"`
-	Evalue       float64 `json:"evalue"`
-	BitScore     float64 `json:"bit_score"`
+	QueryID      string  `json:"query_id"`
+	SubjectID    string  `json:"subject_id"`
+	Identity     float64 `json:"identity"`
+	AlignmentLen int     `json:"alignment_length"`
+	Mismatches   int     `json:"mismatches"`
+	GapOpens     int     `json:"gap_opens"`
+	QueryStart   int     `json:"query_start"`
+	QueryEnd     int     `json:"query_end"`
+	SubjectStart int     `json:"subject_start"`
+	SubjectEnd   int     `json:"subject_end"`
+	Evalue       float64 `json:"evalue"`
+	BitScore     float64 `json:"bit_score"`
 }
 
 // --- Main & Routes ---
 
 func main() {
 	var err error
-	connStr := "postgres://postgres:nunsz2mwnnuqvcbn@paradoxx-postgres-0rxxss:5432/postgres?sslmode=disable"
-	db, err = sql.Open("postgres", connStr)
-
-	defer db.Close()
-
-	for i := 0; i < 10; i++ {
-		err = db.Ping()
-		if err == nil {
-			break
-		}
-		log.Println("Waiting for database...")
-		time.Sleep(2 * time.Second)
+	dbURL := os.Getenv("DATABASE_URL")
+	if dbURL == "" {
+		dbURL = "postgres://postgres:nunsz2mwnnuqvcbn@paradoxx-postgres-0rxxss:5432/postgres?sslmode=disable"
 	}
+
+	// Create connection pool
+	dbPool, err = pgxpool.New(context.Background(), dbURL)
 	if err != nil {
-		log.Fatal("Could not connect to database:", err)
+		log.Fatal("Unable to create connection pool:", err)
 	}
+	defer dbPool.Close()
+
+	// Test connection
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	err = dbPool.Ping(ctx)
+	if err != nil {
+		log.Fatal("Unable to ping database:", err)
+	}
+
+	log.Println("Successfully connected to database!")
 
 	// Species & Taxonomy Routes
 	http.HandleFunc("/api/species", getSpecies)
 	http.HandleFunc("/api/species/", getSpeciesDetail)
 	http.HandleFunc("/api/filters/regions", getRegions)
-	
+
 	// Otolith Routes
 	http.HandleFunc("/api/otoliths", getOtoliths)
 	http.HandleFunc("/api/otoliths/", getOtolithDetail)
-	
+
 	// Occurrence Routes
 	http.HandleFunc("/api/occurrence/latest", getLatestOccurrence)
 	http.HandleFunc("/api/occurrence", getOccurrenceData)
-	
+
 	// Oceanographic Routes
 	http.HandleFunc("/api/oceanographic/parameters", getOceanographicParameters)
 	http.HandleFunc("/api/oceanographic/regions", getOceanographicRegions)
-	
+
 	// Biodiversity Routes
 	http.HandleFunc("/api/biodiversity/metrics", getBiodiversityMetrics)
-	
+
 	// Marine Trends Routes
 	http.HandleFunc("/api/marine-trends/abundance", getMonthlyAbundance)
 	http.HandleFunc("/api/marine-trends/juvenile-adult", getJuvenileAdultRatio)
 	http.HandleFunc("/api/marine-trends/species-list", getSpeciesList)
-	
+
 	// BLAST Route
 	http.HandleFunc("/api/blast", handleBlast)
+
+	// Image Analysis Route (NEW ROUTE)
+	http.HandleFunc("/api/analyze-image", handleAnalyzeImage)
 
 	log.Println("Server starting on :8080")
 	log.Fatal(http.ListenAndServe(":8080", enableCORS(http.DefaultServeMux)))
@@ -163,10 +173,101 @@ func enableCORS(next http.Handler) http.Handler {
 	})
 }
 
-// --- Handler Functions ---
+// --- Handler Functions (Image Analysis) ---
+
+// handleAnalyzeImage accepts a file, forwards it to the ml-service, and proxies the JSON response.
+func handleAnalyzeImage(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// 1. Parse the incoming multipart form from the frontend.
+	// 20 << 20 is 20 MB limit for the image file
+	err := r.ParseMultipartForm(20 << 20) 
+	if err != nil {
+		http.Error(w, "Failed to parse form: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// The form field name for the file is 'file'.
+	file, fileHeader, err := r.FormFile("file")
+	if err != nil {
+		http.Error(w, "Failed to get file 'file' from request: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	// 2. Prepare the new request body for the FastAPI service.
+	var requestBody bytes.Buffer
+	
+	// Create the multipart writer
+	multipartWriter := multipart.NewWriter(&requestBody)
+
+	// Create the file part with the specified field name "file" and original filename.
+	part, err := multipartWriter.CreateFormFile("file", fileHeader.Filename)
+	if err != nil {
+		http.Error(w, "Failed to create form file part: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Copy the uploaded file data into the request body part.
+	_, err = io.Copy(part, file)
+	if err != nil {
+		http.Error(w, "Failed to copy file data: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Close the multipart writer to finalize the boundary.
+	err = multipartWriter.Close()
+	if err != nil {
+		http.Error(w, "Failed to close multipart writer: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// 3. Send the request to the FastAPI service.
+	// Use the Docker service name and port: http://ml-service:8000/analyze
+	fastAPIServiceURL := "http://ml-service:8000/analyze"
+
+	req, err := http.NewRequest("POST", fastAPIServiceURL, &requestBody)
+	if err != nil {
+		http.Error(w, "Failed to create request to ML service: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Set the Content-Type header with the boundary generated by the multipart writer.
+	req.Header.Set("Content-Type", multipartWriter.FormDataContentType())
+
+	// Execute the request to the ML service.
+	client := &http.Client{Timeout: 60 * time.Second} // Use a long timeout for ML processes
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Printf("Error connecting to ML service at %s: %v", fastAPIServiceURL, err)
+		http.Error(w, "ML service request failed (connection error): "+err.Error(), http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+
+	// 4. Handle the response from the FastAPI service (Pass-Through).
+	
+	// Get the Content-Type header from the FastAPI response.
+	contentType := resp.Header.Get("Content-Type")
+
+	// Set the status code and headers for the frontend response.
+	w.Header().Set("Content-Type", contentType)
+	w.WriteHeader(resp.StatusCode)
+
+	// Stream the raw body (JSON or error) directly to the frontend.
+	_, err = io.Copy(w, resp.Body)
+	if err != nil {
+		log.Printf("Failed to stream response body to client: %v", err)
+	}
+}
+
+// --- Handler Functions (Existing) ---
 
 func getRegions(w http.ResponseWriter, r *http.Request) {
-	rows, err := db.Query("SELECT DISTINCT region_name FROM region_metadata ORDER BY region_name")
+	rows, err := dbPool.Query(context.Background(), "SELECT DISTINCT region_name FROM region_metadata ORDER BY region_name")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -181,7 +282,7 @@ func getRegions(w http.ResponseWriter, r *http.Request) {
 		}
 		regions = append(regions, region)
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(regions)
 }
@@ -191,21 +292,19 @@ func getSpecies(w http.ResponseWriter, r *http.Request) {
 	args := []interface{}{}
 	argCount := 1
 
-	// Search filter using JSONB
 	if search := r.URL.Query().Get("search"); search != "" {
 		query += fmt.Sprintf(" AND (data->>'vernacularname' ILIKE $%d OR data->>'scientific_name' ILIKE $%d)", argCount, argCount)
 		args = append(args, "%"+search+"%")
 		argCount++
 	}
 
-	// Class filter
 	if class := r.URL.Query().Get("class"); class != "" {
 		query += fmt.Sprintf(" AND data->>'class' = $%d", argCount)
 		args = append(args, class)
 		argCount++
 	}
 
-	rows, err := db.Query(query, args...)
+	rows, err := dbPool.Query(context.Background(), query, args...)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -234,7 +333,7 @@ func getSpeciesDetail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var s Species
-	err = db.QueryRow("SELECT species_id, upload_id, data FROM species_data WHERE species_id = $1", id).Scan(&s.SpeciesID, &s.UploadID, &s.Data)
+	err = dbPool.QueryRow(context.Background(), "SELECT species_id, upload_id, data FROM species_data WHERE species_id = $1", id).Scan(&s.SpeciesID, &s.UploadID, &s.Data)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -245,7 +344,7 @@ func getSpeciesDetail(w http.ResponseWriter, r *http.Request) {
 }
 
 func getSpeciesList(w http.ResponseWriter, r *http.Request) {
-	rows, err := db.Query("SELECT DISTINCT data->>'scientific_name' as name FROM species_data WHERE data->>'scientific_name' IS NOT NULL ORDER BY name")
+	rows, err := dbPool.Query(context.Background(), "SELECT DISTINCT data->>'scientific_name' as name FROM species_data WHERE data->>'scientific_name' IS NOT NULL ORDER BY name")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -266,9 +365,9 @@ func getSpeciesList(w http.ResponseWriter, r *http.Request) {
 }
 
 func getOtoliths(w http.ResponseWriter, r *http.Request) {
-	rows, err := db.Query(`
-		SELECT otolith_id, species_id, estimated_age, ring_count, area_mm2, perimeter_mm, 
-		       length_mm, width_mm, aspect_ratio, circularity, raw_image_url, processed_image_url, upload_id
+	rows, err := dbPool.Query(context.Background(), `
+		SELECT otolith_id, species_id, estimated_age, ring_count, area_mm2, perimeter_mm, 
+		       length_mm, width_mm, aspect_ratio, circularity, raw_image_url, processed_image_url, upload_id
 		FROM otolith_metadata`)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -301,9 +400,9 @@ func getOtolithDetail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var o Otolith
-	err = db.QueryRow(`
+	err = dbPool.QueryRow(context.Background(), `
 		SELECT otolith_id, species_id, estimated_age, ring_count, area_mm2, perimeter_mm,
-		       length_mm, width_mm, aspect_ratio, circularity, raw_image_url, processed_image_url, upload_id
+		       length_mm, width_mm, aspect_ratio, circularity, raw_image_url, processed_image_url, upload_id
 		FROM otolith_metadata WHERE otolith_id = $1`, id).Scan(
 		&o.OtolithID, &o.SpeciesID, &o.EstimatedAge, &o.RingCount, &o.AreaMm2,
 		&o.PerimeterMm, &o.LengthMm, &o.WidthMm, &o.AspectRatio, &o.Circularity,
@@ -335,7 +434,7 @@ func getOccurrenceData(w http.ResponseWriter, r *http.Request) {
 		argCount++
 	}
 
-	rows, err := db.Query(query, args...)
+	rows, err := dbPool.Query(context.Background(), query, args...)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -363,10 +462,10 @@ func getLatestOccurrence(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var occ OccurrenceData
-	err := db.QueryRow(`
-		SELECT occurrence_id, species_id, upload_id, region, data 
-		FROM occurrence_data 
-		WHERE species_id = $1 
+	err := dbPool.QueryRow(context.Background(), `
+		SELECT occurrence_id, species_id, upload_id, region, data 
+		FROM occurrence_data 
+		WHERE species_id = $1 
 		ORDER BY (data->>'eventdate')::date DESC LIMIT 1`, speciesID).Scan(
 		&occ.OccurrenceID, &occ.SpeciesID, &occ.UploadID, &occ.Region, &occ.Data)
 
@@ -380,7 +479,7 @@ func getLatestOccurrence(w http.ResponseWriter, r *http.Request) {
 }
 
 func getOceanographicRegions(w http.ResponseWriter, r *http.Request) {
-	rows, err := db.Query("SELECT DISTINCT region FROM oceanographic_data ORDER BY region")
+	rows, err := dbPool.Query(context.Background(), "SELECT DISTINCT region FROM oceanographic_data ORDER BY region")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -411,7 +510,6 @@ func getOceanographicParameters(w http.ResponseWriter, r *http.Request) {
 		argCount++
 	}
 
-	// Date filters using JSONB
 	if startDate := r.URL.Query().Get("start_date"); startDate != "" {
 		query += fmt.Sprintf(" AND (data->>'eventdate')::date >= $%d", argCount)
 		args = append(args, startDate)
@@ -426,7 +524,7 @@ func getOceanographicParameters(w http.ResponseWriter, r *http.Request) {
 
 	query += " ORDER BY (data->>'eventdate')::date"
 
-	rows, err := db.Query(query, args...)
+	rows, err := dbPool.Query(context.Background(), query, args...)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -469,7 +567,7 @@ func getBiodiversityMetrics(w http.ResponseWriter, r *http.Request) {
 		argCount++
 	}
 
-	rows, err := db.Query(query, args...)
+	rows, err := dbPool.Query(context.Background(), query, args...)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -506,7 +604,7 @@ func getMonthlyAbundance(w http.ResponseWriter, r *http.Request) {
 		argCount++
 	}
 
-	rows, err := db.Query(query, args...)
+	rows, err := dbPool.Query(context.Background(), query, args...)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -543,7 +641,7 @@ func getJuvenileAdultRatio(w http.ResponseWriter, r *http.Request) {
 		argCount++
 	}
 
-	rows, err := db.Query(query, args...)
+	rows, err := dbPool.Query(context.Background(), query, args...)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -563,7 +661,7 @@ func getJuvenileAdultRatio(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(ratios)
 }
 
-// --- BLAST Functions ---
+// --- BLAST Functions (Existing) ---
 
 func handleBlast(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
@@ -749,5 +847,3 @@ func getNCBIResults(rid string) ([]BlastResult, error) {
 
 	return results, nil
 }
-
-
