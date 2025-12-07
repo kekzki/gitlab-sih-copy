@@ -9,13 +9,14 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
-# FIX: Explicitly install requests and python-multipart to prevent crashes
-RUN pip install --no-cache-dir -r requirements.txt && pip install requests python-multipart
+
+# FIX: We explicitely install 'requests' here.
+# If your file doesn't have this exact line, Docker won't fix the error.
+RUN pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir requests python-multipart uvicorn fastapi
 
 COPY . .
 
 EXPOSE 8000
 
-# Ensure we bind to 0.0.0.0 so Docker can see it
 CMD ["uvicorn", "test_ml_service:app", "--host", "0.0.0.0", "--port", "8000"]
-
