@@ -8,6 +8,8 @@ RUN go mod download
 
 COPY . .
 
+RUN go mod tidy
+
 # --- FIX: Force download of the missing dependency ---
 RUN go get github.com/jackc/pgx/v5/pgxpool
 # -----------------------------------------------------

@@ -23,6 +23,13 @@ var dbPool *pgxpool.Pool
 
 // --- Structs ---
 
+type SpeciesInfo struct {
+	ID             int    `json:"id"`
+	ScientificName string `json:"scientific_name"`
+	IUCNStatus     string `json:"iucn_status"`
+	MaxWeightKG    int    `json:"max_weight_kg"`
+}
+
 type Species struct {
 	SpeciesID int             `json:"species_id"`
 	UploadID  int             `json:"upload_id"`
@@ -98,71 +105,102 @@ type BlastResult struct {
 	BitScore     float64 `json:"bit_score"`
 }
 
-// --- Main ---
+// --- Main & Routes ---
 
 func main() {
-	// 1. HARDCODED DATABASE URL
-	dbURL := "postgres://user:mysecretpassword@db:5432/myappdb?sslmode=disable"
+	// --- 1. CONFIGURE DATABASE CONNECTION ---
+	dbURL := os.Getenv("DATABASE_URL")
+	if dbURL == "" {
+		// Fallback for development
+		dbHost := getEnv("DB_HOST", "localhost")
+		dbPort := getEnv("DB_PORT", "5432")
+		dbUser := getEnv("DB_USER", "postgres")
+		dbPass := os.Getenv("DB_PASSWORD")
+		dbName := getEnv("DB_NAME", "postgres")
 
-	var err error
-	
-	// 2. RETRY LOGIC (Prevents crash if DB is slow)
-	maxRetries := 15
-	for i := 0; i < maxRetries; i++ {
-		log.Printf("Connecting to database (Attempt %d/%d)...", i+1, maxRetries)
-		
-		dbPool, err = pgxpool.New(context.Background(), dbURL)
-		if err == nil {
-			err = dbPool.Ping(context.Background())
-			if err == nil {
-				log.Println("✅ Successfully connected to database!")
-				break
-			}
+		if dbPass == "" {
+			log.Fatal("FATAL: DATABASE_URL or DB_PASSWORD environment variable must be set")
 		}
-		
-		log.Printf("Database not ready yet (%v). Waiting 2 seconds...", err)
-		time.Sleep(2 * time.Second)
+
+		dbURL = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
+			dbUser, dbPass, dbHost, dbPort, dbName)
 	}
 
+	// --- 2. CREATE CONNECTION POOL ---
+	var err error
+	config, err := pgxpool.ParseConfig(dbURL)
 	if err != nil {
-		log.Fatal("❌ Could not connect to database after multiple retries. Exiting.")
+		log.Fatal("Unable to parse DATABASE_URL:", err)
+	}
+
+	// Optional: Configure pool settings
+	config.MaxConns = 10
+	config.MinConns = 2
+
+	dbPool, err = pgxpool.NewWithConfig(context.Background(), config)
+	if err != nil {
+		log.Fatal("Unable to create connection pool:", err)
 	}
 	defer dbPool.Close()
 
-	// 3. REGISTER ALL ROUTES
-	// Species & Taxonomy
+	// --- 3. TEST CONNECTION ---
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	err = dbPool.Ping(ctx)
+	if err != nil {
+		log.Fatal("Unable to connect to database:", err)
+	}
+
+	log.Println("✅ Successfully connected to database!")
+
+	// --- 4. FETCH SAMPLE DATA (Like your original example) ---
+	speciesList, err := fetchSpeciesData(dbPool)
+	if err != nil {
+		log.Printf("⚠️  Error fetching Thunnus species: %v\n", err)
+	} else if len(speciesList) > 0 {
+		log.Println("\n📊 Sample Data - Thunnus Species:")
+		for _, s := range speciesList {
+			log.Printf("   ID: %-3d | %s | IUCN: %-15s | Max Weight: %d kg\n",
+				s.ID, s.ScientificName, s.IUCNStatus, s.MaxWeightKG)
+		}
+	}
+
+	// --- 5. REGISTER API ROUTES ---
 	http.HandleFunc("/api/species", getSpecies)
 	http.HandleFunc("/api/species/", getSpeciesDetail)
+	http.HandleFunc("/api/species/genus/", getSpeciesByGenus)
 	http.HandleFunc("/api/filters/regions", getRegions)
 
-	// Otoliths
 	http.HandleFunc("/api/otoliths", getOtoliths)
 	http.HandleFunc("/api/otoliths/", getOtolithDetail)
 
-	// Occurrence
 	http.HandleFunc("/api/occurrence/latest", getLatestOccurrence)
 	http.HandleFunc("/api/occurrence", getOccurrenceData)
 
-	// Oceanographic
 	http.HandleFunc("/api/oceanographic/parameters", getOceanographicParameters)
 	http.HandleFunc("/api/oceanographic/regions", getOceanographicRegions)
 
-	// Biodiversity
 	http.HandleFunc("/api/biodiversity/metrics", getBiodiversityMetrics)
 
-	// Marine Trends
 	http.HandleFunc("/api/marine-trends/abundance", getMonthlyAbundance)
 	http.HandleFunc("/api/marine-trends/juvenile-adult", getJuvenileAdultRatio)
 	http.HandleFunc("/api/marine-trends/species-list", getSpeciesList)
 
-	// BLAST Route
 	http.HandleFunc("/api/blast", handleBlast)
-
-	// Image Analysis Route (New)
 	http.HandleFunc("/api/analyze-image", handleAnalyzeImage)
 
 	log.Println("🚀 Server starting on :8080")
 	log.Fatal(http.ListenAndServe(":8080", enableCORS(http.DefaultServeMux)))
+}
+
+// --- Helper Functions ---
+
+func getEnv(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
 }
 
 func enableCORS(next http.Handler) http.Handler {
@@ -178,55 +216,54 @@ func enableCORS(next http.Handler) http.Handler {
 	})
 }
 
-// --- Handler Functions ---
+// fetchSpeciesData - Example from your original code, converted to pgx
+func fetchSpeciesData(pool *pgxpool.Pool) ([]SpeciesInfo, error) {
+	query := `
+		SELECT
+			species_id,
+			data ->> 'scientific_name',
+			COALESCE(data ->> 'iucn_status', 'Unknown'),
+			COALESCE(data ->> 'max_weight_kg', '0')
+		FROM
+			species_data
+		WHERE
+			data ->> 'genus' = $1
+		LIMIT 5
+	`
 
-// 1. Image Analysis (Proxy to ML Service)
-func handleAnalyzeImage(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	err := r.ParseMultipartForm(20 << 20)
+	rows, err := pool.Query(context.Background(), query, "Thunnus")
 	if err != nil {
-		http.Error(w, "Failed to parse form: "+err.Error(), http.StatusBadRequest)
-		return
+		return nil, fmt.Errorf("error executing query: %w", err)
+	}
+	defer rows.Close()
+
+	var speciesList []SpeciesInfo
+	for rows.Next() {
+		var s SpeciesInfo
+		var maxWeightStr string
+
+		if err := rows.Scan(&s.ID, &s.ScientificName, &s.IUCNStatus, &maxWeightStr); err != nil {
+			return nil, fmt.Errorf("error scanning row: %w", err)
+		}
+
+		s.MaxWeightKG, err = strconv.Atoi(maxWeightStr)
+		if err != nil {
+			log.Printf("Warning: Could not convert max_weight_kg '%s' to int for ID %d\n", maxWeightStr, s.ID)
+			s.MaxWeightKG = 0
+		}
+
+		speciesList = append(speciesList, s)
 	}
 
-	file, fileHeader, err := r.FormFile("file")
-	if err != nil {
-		http.Error(w, "Failed to get file", http.StatusBadRequest)
-		return
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error during row iteration: %w", err)
 	}
-	defer file.Close()
 
-	var requestBody bytes.Buffer
-	multipartWriter := multipart.NewWriter(&requestBody)
-	part, _ := multipartWriter.CreateFormFile("file", fileHeader.Filename)
-	io.Copy(part, file)
-	multipartWriter.Close()
-
-	// Hardcoded ML Service URL
-	fastAPIServiceURL := "http://ml-service:8000/analyze"
-
-	req, _ := http.NewRequest("POST", fastAPIServiceURL, &requestBody)
-	req.Header.Set("Content-Type", multipartWriter.FormDataContentType())
-
-	client := &http.Client{Timeout: 60 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		log.Printf("Error connecting to ML service: %v", err)
-		http.Error(w, "ML service unavailable", http.StatusBadGateway)
-		return
-	}
-	defer resp.Body.Close()
-
-	w.Header().Set("Content-Type", resp.Header.Get("Content-Type"))
-	w.WriteHeader(resp.StatusCode)
-	io.Copy(w, resp.Body)
+	return speciesList, nil
 }
 
-// 2. Species Handlers
+// --- Handler Functions ---
+
 func getRegions(w http.ResponseWriter, r *http.Request) {
 	rows, err := dbPool.Query(context.Background(), "SELECT DISTINCT region_name FROM region_metadata ORDER BY region_name")
 	if err != nil {
@@ -304,6 +341,40 @@ func getSpeciesDetail(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(s)
 }
 
+func getSpeciesByGenus(w http.ResponseWriter, r *http.Request) {
+	genus := strings.TrimPrefix(r.URL.Path, "/api/species/genus/")
+	if genus == "" {
+		http.Error(w, "Genus parameter required", http.StatusBadRequest)
+		return
+	}
+
+	query := `
+		SELECT species_id, upload_id, data 
+		FROM species_data 
+		WHERE data->>'genus' = $1
+		ORDER BY data->>'scientific_name'
+	`
+
+	rows, err := dbPool.Query(context.Background(), query, genus)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	var speciesList []Species
+	for rows.Next() {
+		var s Species
+		if err := rows.Scan(&s.SpeciesID, &s.UploadID, &s.Data); err != nil {
+			continue
+		}
+		speciesList = append(speciesList, s)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(speciesList)
+}
+
 func getSpeciesList(w http.ResponseWriter, r *http.Request) {
 	rows, err := dbPool.Query(context.Background(), "SELECT DISTINCT data->>'scientific_name' as name FROM species_data WHERE data->>'scientific_name' IS NOT NULL ORDER BY name")
 	if err != nil {
@@ -325,7 +396,6 @@ func getSpeciesList(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(names)
 }
 
-// 3. Otolith Handlers
 func getOtoliths(w http.ResponseWriter, r *http.Request) {
 	rows, err := dbPool.Query(context.Background(), `
 		SELECT otolith_id, species_id, estimated_age, ring_count, area_mm2, perimeter_mm, 
@@ -379,7 +449,6 @@ func getOtolithDetail(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(o)
 }
 
-// 4. Occurrence Handlers
 func getOccurrenceData(w http.ResponseWriter, r *http.Request) {
 	query := "SELECT occurrence_id, species_id, upload_id, region, data FROM occurrence_data WHERE 1=1"
 	args := []interface{}{}
@@ -441,7 +510,6 @@ func getLatestOccurrence(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(occ)
 }
 
-// 5. Oceanographic Handlers
 func getOceanographicRegions(w http.ResponseWriter, r *http.Request) {
 	rows, err := dbPool.Query(context.Background(), "SELECT DISTINCT region FROM oceanographic_data ORDER BY region")
 	if err != nil {
@@ -508,7 +576,6 @@ func getOceanographicParameters(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(parameters)
 }
 
-// 6. Biodiversity Handlers
 func getBiodiversityMetrics(w http.ResponseWriter, r *http.Request) {
 	query := "SELECT id, region, upload_id, data FROM species_diversity WHERE 1=1"
 	args := []interface{}{}
@@ -552,7 +619,6 @@ func getBiodiversityMetrics(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(metrics)
 }
 
-// 7. Marine Trends Handlers
 func getMonthlyAbundance(w http.ResponseWriter, r *http.Request) {
 	query := "SELECT id, species_id, region, upload_id, data FROM monthly_location_abundance WHERE 1=1"
 	args := []interface{}{}
@@ -627,7 +693,75 @@ func getJuvenileAdultRatio(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(ratios)
 }
 
-// 8. BLAST Handlers
+// --- Image Analysis Handler (FastAPI Integration) ---
+
+func handleAnalyzeImage(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	err := r.ParseMultipartForm(20 << 20)
+	if err != nil {
+		http.Error(w, "Failed to parse form: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	file, fileHeader, err := r.FormFile("file")
+	if err != nil {
+		http.Error(w, "Failed to get file: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	var requestBody bytes.Buffer
+	multipartWriter := multipart.NewWriter(&requestBody)
+
+	part, err := multipartWriter.CreateFormFile("file", fileHeader.Filename)
+	if err != nil {
+		http.Error(w, "Failed to create form file: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	_, err = io.Copy(part, file)
+	if err != nil {
+		http.Error(w, "Failed to copy file: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	err = multipartWriter.Close()
+	if err != nil {
+		http.Error(w, "Failed to close multipart writer: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// FastAPI service URL
+	fastAPIServiceURL := getEnv("ML_SERVICE_URL", "http://ml-service:8000/analyze")
+
+	req, err := http.NewRequest("POST", fastAPIServiceURL, &requestBody)
+	if err != nil {
+		http.Error(w, "Failed to create ML service request: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	req.Header.Set("Content-Type", multipartWriter.FormDataContentType())
+
+	client := &http.Client{Timeout: 60 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Printf("Error connecting to ML service at %s: %v", fastAPIServiceURL, err)
+		http.Error(w, "ML service connection failed: "+err.Error(), http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+
+	w.Header().Set("Content-Type", resp.Header.Get("Content-Type"))
+	w.WriteHeader(resp.StatusCode)
+	io.Copy(w, resp.Body)
+}
+
+// --- BLAST Functions ---
+
 func handleBlast(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
