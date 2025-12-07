@@ -45,7 +45,7 @@ services:
     networks:
       - dokploy-network
     ports:
-      - "6001:3900"
+      - "3900:3900"
       - "4001:4001"
     volumes:
       - ./garage.toml:/etc/garage.toml:ro
