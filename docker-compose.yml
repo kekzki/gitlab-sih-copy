@@ -23,7 +23,7 @@ services:
       - "8080:8080"
     depends_on:
       - db
-      - ml-service
+#      - ml-service
     environment:
       - NODE_ENV=production
       # Uses variable from .env
