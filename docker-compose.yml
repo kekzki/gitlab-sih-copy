@@ -1,46 +1,6 @@
 version: "3.8"
 
 services:
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      # FIX: 'args' is now correctly indented inside 'build'
-      args:
-        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
-        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
-    networks:
-      - dokploy-network
-    environment:
-      - VITE_API_URL=${VITE_API_URL}
-
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    networks:
-      - dokploy-network
-    ports:
-      - "8080:8080"
-    depends_on:
-      - db
-      - ml-service
-    environment:
-      - NODE_ENV=production
-      - DATABASE_URL=postgres://user:${DB_PASSWORD}@db:5432/myappdb?sslmode=disable
-      - JWT_SECRET=${JWT_SECRET}
-      - ML_SERVICE_URL=http://ml-service:8000/analyze
-
-  ml-service:
-    build:
-      # FIX: Path matches your structure (backend/otolith_ml_service)
-      context: ./backend/otolith_ml_service
-      dockerfile: Dockerfile
-    networks:
-      - dokploy-network
-    expose:
-      - "8000"
-
   db:
     image: postgres:16-alpine
     networks:
@@ -51,9 +11,60 @@ services:
       - db_data:/var/lib/postgresql/data
       - ./paradoxx_db.sql:/docker-entrypoint-initdb.d/init.sql
     environment:
-      - POSTGRES_USER=user
-      - POSTGRES_PASSWORD=${DB_PASSWORD}
-      - POSTGRES_DB=myappdb
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: myappdb
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d myappdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  ml-service:
+    build:
+      context: ./backend/otolith_ml_service
+      dockerfile: Dockerfile
+    networks:
+      - dokploy-network
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    networks:
+      - dokploy-network
+    ports:
+      - "8080:8080"
+    environment:
+      - DATABASE_URL=postgres://user:${DB_PASSWORD}@db:5432/myappdb?sslmode=disable
+      - ML_SERVICE_URL=http://ml-service:8000/analyze
+    depends_on:
+      db:
+        condition: service_healthy
+      ml-service:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
+        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
+        VITE_API_URL: http://localhost:8080
+    networks:
+      - dokploy-network
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
 
 networks:
   dokploy-network:
