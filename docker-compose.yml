@@ -1,12 +1,13 @@
+version: "3.8"
+
 services:
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-      args:
-        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
-        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
-
+    args:
+      VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
+      VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
     networks:
       - dokploy-network
     environment:
@@ -18,10 +19,27 @@ services:
       dockerfile: Dockerfile
     networks:
       - dokploy-network
+    ports:
+      - "8080:8080" # Ensure this is exposed so you can reach it from localhost
+    depends_on:
+      - db
+      - ml-service # Wait for ML service to start
     environment:
       - NODE_ENV=production
       - DATABASE_URL=postgres://user:${DB_PASSWORD}@db:5432/myappdb?sslmode=disable
       - JWT_SECRET=${JWT_SECRET}
+      - ML_SERVICE_URL=http://ml-service:8000/analyze # Explicitly set the URL
+
+  # --- ADD THIS SECTION ---
+  ml-service:
+    build:
+      context: ./otolith_ml_service # Points to your python folder
+      dockerfile: Dockerfile
+    networks:
+      - dokploy-network
+    expose:
+      - "8000" # Expose port 8000 to the network (Go needs this)
+  # ------------------------
 
   db:
     image: postgres:16-alpine
@@ -30,12 +48,12 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - ../files/db-data:/var/lib/postgresql/data
-      - ./paradoxx_db.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./db-data:/var/lib/postgresql/data # Adjusted path for cleanliness
+      - ./backend/paradoxx_db.sql:/docker-entrypoint-initdb.d/init.sql
     environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: myappdb
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=myappdb
 
 networks:
   dokploy-network:
