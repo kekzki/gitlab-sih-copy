@@ -1,22 +1,21 @@
-# /backend/otolith_ml_service/Dockerfile
 FROM python:3.9-slim
 
 WORKDIR /app
 
-# FIX: Use 'libgl1' and 'libglib2.0-0' instead of the deprecated 'libgl1-mesa-glx'
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     libgl1 \
     libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# FIX: Explicitly install requests and python-multipart to prevent crashes
+RUN pip install --no-cache-dir -r requirements.txt && pip install requests python-multipart
 
 COPY . .
 
-# Match port in docker-compose
 EXPOSE 8000
 
-# Start command
-# Adjust 'test_ml_service:app' if your python file/app name is different
+# Ensure we bind to 0.0.0.0 so Docker can see it
 CMD ["uvicorn", "test_ml_service:app", "--host", "0.0.0.0", "--port", "8000"]
+
