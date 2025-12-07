@@ -1,38 +1,17 @@
 version: "3.8"
 
 services:
-  db:
-    image: postgres:16-alpine
-    networks:
-      - dokploy-network
-    ports:
-      - "5432:5432"
-    volumes:
-      - db_data:/var/lib/postgresql/data
-      - ./paradoxx_db.sql:/docker-entrypoint-initdb.d/init.sql
-    environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: myappdb
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d myappdb"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  ml-service:
+  frontend:
     build:
-      context: ./backend/otolith_ml_service
+      context: ./frontend
       dockerfile: Dockerfile
+      args:
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
+        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
     networks:
       - dokploy-network
-    ports:
-      - "8000:8000"
-    healthcheck:
-      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health')"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
+    environment:
+      - VITE_API_URL=${VITE_API_URL}
 
   backend:
     build:
@@ -42,29 +21,41 @@ services:
       - dokploy-network
     ports:
       - "8080:8080"
-    environment:
-      - DATABASE_URL=postgres://user:${DB_PASSWORD}@db:5432/myappdb?sslmode=disable
-      - ML_SERVICE_URL=http://ml-service:8000/analyze
     depends_on:
-      db:
-        condition: service_healthy
-      ml-service:
-        condition: service_healthy
+      - db
+      - ml-service
+    environment:
+      - NODE_ENV=production
+      # Uses variable from .env
+      - DATABASE_URL=postgres://user:${DB_PASSWORD}@db:5432/myappdb?sslmode=disable
+      - JWT_SECRET=${JWT_SECRET}
+      # This remains hardcoded as it is an internal docker network address
+      - ML_SERVICE_URL=http://ml-service:8000/analyze
 
-  frontend:
+  ml-service:
     build:
-      context: ./frontend
+      # Correct path based on your file structure
+      context: ./backend/otolith_ml_service
       dockerfile: Dockerfile
-      args:
-        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
-        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
-        VITE_API_URL: http://localhost:8080
+    networks:
+      - dokploy-network
+    expose:
+      - "8000"
+
+  db:
+    image: postgres:16-alpine
     networks:
       - dokploy-network
     ports:
-      - "80:80"
-    depends_on:
-      - backend
+      - "5432:5432"
+    volumes:
+      # Using named volume for reliability
+      - db_data:/var/lib/postgresql/data
+      - ./paradoxx_db.sql:/docker-entrypoint-initdb.d/init.sql
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=myappdb
 
 networks:
   dokploy-network:
