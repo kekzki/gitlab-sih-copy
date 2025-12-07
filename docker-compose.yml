@@ -20,26 +20,28 @@ services:
     networks:
       - dokploy-network
     ports:
-      - "8080:8080" # Ensure this is exposed so you can reach it from localhost
+      - "8080:8080"
     depends_on:
       - db
-      - ml-service # Wait for ML service to start
+      - ml-service
     environment:
       - NODE_ENV=production
       - DATABASE_URL=postgres://user:${DB_PASSWORD}@db:5432/myappdb?sslmode=disable
       - JWT_SECRET=${JWT_SECRET}
-      - ML_SERVICE_URL=http://ml-service:8000/analyze # Explicitly set the URL
+      # This URL works because the service name below is 'ml-service'
+      - ML_SERVICE_URL=http://ml-service:8000/analyze
 
-  # --- ADD THIS SECTION ---
+  # --- CORRECTED SERVICE DEFINITION ---
   ml-service:
     build:
-      context: ./otolith_ml_service # Points to your python folder
+      # CRITICAL FIX: Path updated based on your 'ls' output
+      context: ./backend/otolith_ml_service
       dockerfile: Dockerfile
     networks:
       - dokploy-network
     expose:
-      - "8000" # Expose port 8000 to the network (Go needs this)
-  # ------------------------
+      - "8000"
+  # ------------------------------------
 
   db:
     image: postgres:16-alpine
@@ -48,8 +50,9 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - ./db-data:/var/lib/postgresql/data # Adjusted path for cleanliness
-      - ./backend/paradoxx_db.sql:/docker-entrypoint-initdb.d/init.sql
+      - db_data:/var/lib/postgresql/data
+      # Make sure this path is correct relative to docker-compose.yml
+      - ./paradoxx_db.sql:/docker-entrypoint-initdb.d/init.sql
     environment:
       - POSTGRES_USER=user
       - POSTGRES_PASSWORD=${DB_PASSWORD}
@@ -58,3 +61,6 @@ services:
 networks:
   dokploy-network:
     driver: bridge
+
+volumes:
+  db_data:
