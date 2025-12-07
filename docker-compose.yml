@@ -32,15 +32,15 @@ services:
       # This remains hardcoded as it is an internal docker network address
       - ML_SERVICE_URL=http://ml-service:8000/analyze
 
-  ml-service:
-    build:
-      # Correct path based on your file structure
-      context: ./backend/otolith_ml_service
-      dockerfile: Dockerfile
-    networks:
-      - dokploy-network
-    expose:
-      - "8000"
+#  ml-service:
+#    build:
+#      # Correct path based on your file structure
+#      context: ./backend/otolith_ml_service
+#      dockerfile: Dockerfile
+#    networks:
+#      - dokploy-network
+#    expose:
+#      - "8000"
 
   db:
     image: postgres:16-alpine
