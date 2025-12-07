@@ -1,0 +1,17 @@
+# garage.toml
+
+# Storage Configuration
+metadata_dir = "/var/lib/garage/meta"
+data_dir = "/var/lib/garage/data"
+db_engine = "lmdb"
+replication_factor = 1 
+
+# RPC (Internal Communication)
+rpc_bind_addr = "0.0.0.0:4001"
+rpc_secret = "$GARAGE_RPC_SECRET"
+rpc_public_addr = "garage:4001"
+
+# S3 API Configuration
+[s3_api]
+s3_region = "paradoxx-region"
+api_bind_addr = "0.0.0.0:3900"
