@@ -1,3 +1,4 @@
+# /backend/otolith_ml_service/Dockerfile
 FROM python:3.9-slim
 
 WORKDIR /app
@@ -9,14 +10,13 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
-
-# FIX: We explicitely install 'requests' here.
-# If your file doesn't have this exact line, Docker won't fix the error.
-RUN pip install --no-cache-dir -r requirements.txt && \
-    pip install --no-cache-dir requests python-multipart uvicorn fastapi
+# We only need the service dependencies, not 'requests'
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
 EXPOSE 8000
 
-CMD ["uvicorn", "test_ml_service:app", "--host", "0.0.0.0", "--port", "8000"]
+# FIX: Run the actual app module (app/main.py -> app.main:app)
+# Do NOT run test_ml_service.py
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
