@@ -5,9 +5,10 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    args:
-      VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
-      VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
+      # FIX: 'args' is now correctly indented inside 'build'
+      args:
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
+        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
     networks:
       - dokploy-network
     environment:
@@ -28,20 +29,17 @@ services:
       - NODE_ENV=production
       - DATABASE_URL=postgres://user:${DB_PASSWORD}@db:5432/myappdb?sslmode=disable
       - JWT_SECRET=${JWT_SECRET}
-      # This URL works because the service name below is 'ml-service'
       - ML_SERVICE_URL=http://ml-service:8000/analyze
 
-  # --- CORRECTED SERVICE DEFINITION ---
   ml-service:
     build:
-      # CRITICAL FIX: Path updated based on your 'ls' output
+      # FIX: Path matches your structure (backend/otolith_ml_service)
       context: ./backend/otolith_ml_service
       dockerfile: Dockerfile
     networks:
       - dokploy-network
     expose:
       - "8000"
-  # ------------------------------------
 
   db:
     image: postgres:16-alpine
@@ -51,7 +49,6 @@ services:
       - "5432:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
-      # Make sure this path is correct relative to docker-compose.yml
       - ./paradoxx_db.sql:/docker-entrypoint-initdb.d/init.sql
     environment:
       - POSTGRES_USER=user
