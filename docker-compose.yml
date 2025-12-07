@@ -41,9 +41,6 @@ services:
       POSTGRES_DB: myappdb
   
   garage:
-    build:
-      context: .
-      dockerfile: Garage.Dockerfile
     image: dxflrs/garage:v2.1.0
     networks:
       - dokploy-network
