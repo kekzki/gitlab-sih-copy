@@ -1,3 +1,69 @@
+#version: "3.8"
+
+#services:
+ # frontend:
+  #  build:
+   #   context: ./frontend
+    #  dockerfile: Dockerfile
+     # args:
+      #  VITE_SUPABASE_URL: https://vztwpbwjhxgawthkzyqx.supabase.co/
+       # VITE_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ6dHdwYndqaHhnYXd0aGt6eXF4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ1MDkyODksImV4cCI6MjA4MDA4NTI4OX0.U81wxeyHIOzMEg-Gi_vj6JwwxXFkEceAlWBSchorp6s
+    #networks:
+     # - dokploy-network
+   # environment:
+    #  - VITE_API_URL=http://api.paradoxx6.duckdns.org/
+
+  #backend:
+   # build:
+    #  context: ./backend
+     # dockerfile: Dockerfile
+    #networks:
+     # - dokploy-network
+    #ports:
+     # - "8080:8080"
+    #depends_on:
+     # - db
+      #- ml-service
+    #environment:
+     # - NODE_ENV=production
+      # Uses variable from .env
+      #- DATABASE_URL=postgres://user:somepass@db:5432/myappdb?sslmode=disable
+#      - JWT_SECRET=mysec
+      # This remains hardcoded as it is an internal docker network address
+#      - ML_SERVICE_URL=http://ml-service:8000/analyze
+
+#  ml-service:
+#    build:
+      # Correct path based on your file structure
+#      context: ./backend/otolith_ml_service
+#      dockerfile: Dockerfile
+#    networks:
+#      - dokploy-network
+#    expose:
+#      - "8000"
+
+#  db:
+#    image: postgres:16-alpine
+#    networks:
+#      - dokploy-network
+#    ports:
+#      - "5432:5432"
+#    volumes:
+      # Using named volume for reliability
+#      - db_data:/var/lib/postgresql/data
+#      - ./paradoxx_db.sql:/docker-entrypoint-initdb.d/init.sql
+#    environment:
+#      - POSTGRES_USER=user
+#      - POSTGRES_PASSWORD=somepass
+#      - POSTGRES_DB=myappdb
+
+#networks:
+#  dokploy-network:
+#    driver: bridge
+
+#volumes:
+#  db_data:
+
 version: "3.8"
 
 services:
@@ -12,6 +78,8 @@ services:
       - dokploy-network
     environment:
       - VITE_API_URL=http://api.paradoxx6.duckdns.org/
+    ports:
+      - "3000:80"
 
   backend:
     build:
@@ -24,23 +92,28 @@ services:
     depends_on:
       - db
       - ml-service
+    volumes:
+      # --- CRITICAL FIX: READ ACCESS ---
+      # Allows Go to see the images created by Python
+      - shared_images:/app/batch_results
     environment:
       - NODE_ENV=production
-      # Uses variable from .env
       - DATABASE_URL=postgres://user:somepass@db:5432/myappdb?sslmode=disable
       - JWT_SECRET=mysec
-      # This remains hardcoded as it is an internal docker network address
       - ML_SERVICE_URL=http://ml-service:8000/analyze
 
   ml-service:
     build:
-      # Correct path based on your file structure
       context: ./backend/otolith_ml_service
       dockerfile: Dockerfile
     networks:
       - dokploy-network
     expose:
       - "8000"
+    volumes:
+      # --- CRITICAL FIX: WRITE ACCESS ---
+      # Tells Python to save images here so Go can see them
+      - shared_images:/app/batch_results
 
   db:
     image: postgres:16-alpine
@@ -49,7 +122,6 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      # Using named volume for reliability
       - db_data:/var/lib/postgresql/data
       - ./paradoxx_db.sql:/docker-entrypoint-initdb.d/init.sql
     environment:
@@ -63,3 +135,5 @@ networks:
 
 volumes:
   db_data:
+  # Define the new shared volume
+  shared_images:

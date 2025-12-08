@@ -165,6 +165,23 @@ func main() {
 				s.ID, s.ScientificName, s.IUCNStatus, s.MaxWeightKG)
 		}
 	}
+	// --- CORRECTED STATIC FILE SERVING ---
+	// 1. Define the Linux path (Matches your docker-compose volumes)
+	imageDir := "/app/batch_results"
+
+	// 2. Create the directory if it doesn't exist (Prevents crash)
+	if _, err := os.Stat(imageDir); os.IsNotExist(err) {
+		log.Printf("Creating missing directory: %s", imageDir)
+		err := os.MkdirAll(imageDir, os.ModePerm)
+		if err != nil {
+			log.Printf("Warning: Failed to create directory: %v", err)
+		}
+	}
+
+	// 3. Serve the Static Files
+	// This makes http://localhost:8080/batch_results/image.png work
+	fileServer := http.FileServer(http.Dir(imageDir))
+	http.Handle("/batch_results/", http.StripPrefix("/batch_results/", fileServer))
 
 	// --- 5. REGISTER API ROUTES ---
 	http.HandleFunc("/api/species", getSpecies)
