@@ -1,0 +1,11 @@
+# /backend/Dockerfile-python-testdb
+FROM python:3.10-alpine
+
+WORKDIR /app
+
+COPY dber2.py .
+
+# Install Python dependencies
+RUN pip install psycopg2-binary boto3
+
+CMD ["python", "dber2.py"]

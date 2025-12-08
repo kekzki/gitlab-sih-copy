@@ -1,63 +1,71 @@
+import os
 import psycopg2
+from psycopg2 import sql
+import boto3
 
-# --- Database Configuration ---
-DB_HOST = '72.61.231.140'
-DB_PORT = '5432'
-DB_NAME = 'myappdb'
-DB_USER = 'user'
-DB_PASS = 'somepass'
 
-# --- Query to Test ---
-TEST_QUERY = 'SELECT * FROM "region_metadata" LIMIT 1'
+def get_env(key, default):
+    return os.getenv(key, default)
 
-def test_db_connection_and_query():
-    """Connects to the PostgreSQL database and executes a test query."""
-    conn = None
+def main():
+    # Try DATABASE_URL first
+    # db_url = os.getenv("DATABASE_URL")
+    db_url = "postgres://user:somepass@db:5432/myappdb?sslmode=disable"
+
+    if not db_url:
+        # Fallback identical to Go code logic
+        DB_HOST = get_env("DB_HOST", "localhost")
+        DB_PORT = get_env("DB_PORT", "5432")
+        DB_USER = get_env("DB_USER", "postgres")
+        DB_PASS = os.getenv("DB_PASSWORD")
+        DB_NAME = get_env("DB_NAME", "postgres")
+
+        if not DB_PASS:
+            print("❌ ERROR: DB_PASSWORD or DATABASE_URL must be set")
+            return
+
+        db_url = f"postgres://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}?sslmode=disable"
+        # postgres://user:somepass@db:5432/myappdb?sslmode=disable
+
+    print("Connecting using URL:", db_url)
+    print("Attempting to connect to PostgreSQL...")
+
     try:
-        # 1. Establish the connection
-        print("Attempting to connect to PostgreSQL...")
-        conn = psycopg2.connect(
-            host=DB_HOST,
-            port=DB_PORT,
-            database=DB_NAME,
-            user=DB_USER,
-            password=DB_PASS
-        )
-        print("✅ Connection established successfully.")
+        conn = psycopg2.connect(db_url)
+    except Exception as e:
+        print(f"❌ Connection failed: {e}")
+        return
 
-        # 2. Create a cursor object to execute SQL commands
+    print("✅ Connection established successfully.")
+    print("Fetching list of tables...")
+
+    query = """
+        SELECT table_name
+        FROM information_schema.tables
+        WHERE table_schema = 'public'
+        ORDER BY table_name;
+    """
+
+    try:
         cur = conn.cursor()
+        cur.execute(query)
+        rows = cur.fetchall()
+    except Exception as e:
+        print(f"❌ Failed to fetch tables: {e}")
+        conn.close()
+        return
 
-        # 3. Execute the test query
-        print(f"Executing query: {TEST_QUERY}")
-        cur.execute(TEST_QUERY)
+    if not rows:
+        print("⚠️ No tables found in schema 'public'.")
+    else:
+        print("\n📌 Tables in 'public' schema:")
+        for row in rows:
+            print(" -", row[0])
 
-        # 4. Fetch the results (just one row due to LIMIT 1)
-        row = cur.fetchone()
+    cur.close()
+    conn.close()
 
-        # 5. Get column names
-        column_names = [desc[0] for desc in cur.description]
-        
-        # 6. Display the results
-        if row:
-            print("\n--- Query Result ---")
-            print(f"Columns: {column_names}")
-            print(f"Data: {row}")
-            print("Successfully retrieved data.")
-        else:
-            print("Query succeeded, but returned no rows (the table might be empty).")
-
-        # 7. Close cursor and connection
-        cur.close()
-
-    except psycopg2.Error as e:
-        print(f"\n❌ Database Connection Error: {e}")
-        print("Please check your host IP, port, credentials, and ensure the DB is running and accessible.")
-
-    finally:
-        if conn is not None:
-            conn.close()
-            print("Connection closed.")
+    print("\nConnection closed.")
 
 if __name__ == "__main__":
-    test_db_connection_and_query()
+    main()

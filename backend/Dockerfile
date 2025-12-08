@@ -14,7 +14,7 @@ RUN go mod tidy
 RUN go get github.com/jackc/pgx/v5/pgxpool
 # -----------------------------------------------------
 
-RUN CGO_ENABLED=0 go build -o main main.go
+RUN CGO_ENABLED=0 go build -o testdb testdb.go
 
 FROM alpine:latest AS final
 
@@ -22,8 +22,8 @@ RUN apk --no-cache add ca-certificates
 
 WORKDIR /
 
-COPY --from=build /app/main /main
+COPY --from=build /app/testdb /testdb
 
 EXPOSE 8080
 
-CMD ["/main"]
+CMD ["/testdb"]
