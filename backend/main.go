@@ -128,6 +128,13 @@ func main() {
 		log.Fatal("Could not connect to database:", err)
 	}
 
+	imageDir := "E:\\otolith_analysis\\batch_results\\"
+	if _, err := os.Stat(imageDir); os.IsNotExist(err) {
+    	log.Fatalf("Image directory not found: %s", imageDir)
+	}
+
+http.Handle("/api/images/otoliths/", http.StripPrefix("/api/images/otoliths/", http.FileServer(http.Dir(imageDir))))
+
 	http.HandleFunc("/api/filters/classes", getClasses)
 	http.HandleFunc("/api/filters/regions", getRegions)
 	http.HandleFunc("/api/filters/conservation-status", getConservationStatuses)
@@ -666,4 +673,5 @@ func getNCBIResults(rid string) ([]BlastResult, error) {
 	}
 
 	return results, nil
+
 }
