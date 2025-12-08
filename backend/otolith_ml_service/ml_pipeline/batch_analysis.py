@@ -34,8 +34,7 @@ class BatchOtolithAnalyzer:
         self.model = create_oto_segnet(model_type='full', num_species=num_species)
         
         # Load state dict
-# FIX: Explicitly set weights_only=False to allow loading older models
-        state_dict = torch.load(model_path, map_location='cpu', weights_only=False)
+        state_dict = torch.load(model_path, map_location='cpu')
         self.model.load_state_dict(state_dict)
         self.model.eval()
         
