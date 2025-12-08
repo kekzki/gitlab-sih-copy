@@ -7,61 +7,57 @@ DB_NAME = 'myappdb'
 DB_USER = 'user'
 DB_PASS = 'somepass'
 
-# SQL query to list all non-system tables (BASE TABLE type)
-LIST_TABLES_QUERY = """
-SELECT table_schema, table_name
-FROM information_schema.tables
-WHERE table_type = 'BASE TABLE'
-AND table_schema NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
-ORDER BY table_schema, table_name;
-"""
+# --- Query to Test ---
+TEST_QUERY = 'SELECT * FROM "region_metadata" LIMIT 1'
 
-def list_all_tables():
-    """Connects to the database and prints all user-defined tables and their schemas."""
+def test_db_connection_and_query():
+    """Connects to the PostgreSQL database and executes a test query."""
     conn = None
     try:
         # 1. Establish the connection
+        print("Attempting to connect to PostgreSQL...")
         conn = psycopg2.connect(
-            host=DB_HOST, port=DB_PORT, database=DB_NAME,
-            user=DB_USER, password=DB_PASS
+            host=DB_HOST,
+            port=DB_PORT,
+            database=DB_NAME,
+            user=DB_USER,
+            password=DB_PASS
         )
-        cur = conn.cursor()
         print("✅ Connection established successfully.")
 
-        # 2. Execute the table listing query
-        cur.execute(LIST_TABLES_QUERY)
-        results = cur.fetchall()
+        # 2. Create a cursor object to execute SQL commands
+        cur = conn.cursor()
 
-        # 3. Display the results
-        if not results:
-            print("\n❌ No user-defined tables found in the database.")
-            return
+        # 3. Execute the test query
+        print(f"Executing query: {TEST_QUERY}")
+        cur.execute(TEST_QUERY)
 
-        print("\n--- All User-Defined Tables Found ---")
-        
-        # Group tables by schema for clarity
-        tables_by_schema = {}
-        for schema, table in results:
-            tables_by_schema.setdefault(schema, []).append(table)
-        
-        for schema, tables in tables_by_schema.items():
-            print(f"\n[Schema: **{schema}**]")
-            for table in tables:
-                print(f"  - {table}")
-        
-        print("\n-------------------------------------")
+        # 4. Fetch the results (just one row due to LIMIT 1)
+        row = cur.fetchone()
 
-        # 4. Use the full name (schema.table) for querying
-        print("To query a table, use the full name: **schema.table_name**")
+        # 5. Get column names
+        column_names = [desc[0] for desc in cur.description]
         
+        # 6. Display the results
+        if row:
+            print("\n--- Query Result ---")
+            print(f"Columns: {column_names}")
+            print(f"Data: {row}")
+            print("Successfully retrieved data.")
+        else:
+            print("Query succeeded, but returned no rows (the table might be empty).")
+
+        # 7. Close cursor and connection
         cur.close()
 
     except psycopg2.Error as e:
-        print(f"\n❌ Database Connection or Query Error: {e}")
+        print(f"\n❌ Database Connection Error: {e}")
+        print("Please check your host IP, port, credentials, and ensure the DB is running and accessible.")
+
     finally:
         if conn is not None:
             conn.close()
             print("Connection closed.")
 
 if __name__ == "__main__":
-    list_all_tables()
+    test_db_connection_and_query()
