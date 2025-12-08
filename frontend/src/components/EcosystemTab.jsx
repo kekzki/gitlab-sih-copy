@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Map as MapIcon, 
   Thermometer, 
@@ -10,26 +10,114 @@ import {
   Plus, 
   Minus, 
   RotateCcw,
-  Navigation
+  Navigation,
+  Loader2
 } from 'lucide-react';
 
+// --- Mappings & Helpers ---
+
+// Since the backend doesn't store UI coordinates, we map Region Names to Map positions here.
+const REGION_MAP = {
+  'Pacific': { top: '40%', left: '80%' },
+  'Atlantic': { top: '30%', left: '30%' },
+  'Indian': { top: '65%', left: '60%' },
+  'Bay of Bengal': { top: '60%', left: '70%' },
+  'Arabian Sea': { top: '60%', left: '55%' },
+  // Fallbacks for unknown regions distributed randomly
+  'default': { top: '50%', left: '50%' }
+};
+
+const getStatus = (temp, salinity) => {
+  const t = parseFloat(temp);
+  const s = parseFloat(salinity);
+  if (t > 30 || s < 30) return { label: 'Critical', color: 'rose', score: 45 };
+  if (t > 28 || s < 33) return { label: 'Warning', color: 'amber', score: 65 };
+  return { label: 'Optimal', color: 'emerald', score: 92 };
+};
+
 const EcosystemTab = () => {
-  // State for the "Live Probe" (Simulating hover data)
+  // State
+  const [loading, setLoading] = useState(true);
+  const [markers, setMarkers] = useState([]);
+  const [activeLayer, setActiveLayer] = useState('health');
+  
+  // HUD State (Default placeholder)
   const [probeData, setProbeData] = useState({
-    location: "Bay of Bengal (Zone A)",
-    coords: "12.45°N, 81.2°E",
-    temp: "28.4°C",
-    salinity: "34.1 PSU",
-    health: 72,
-    status: "Good"
+    location: "Select a Sensor",
+    coords: "--",
+    temp: "--",
+    salinity: "--",
+    health: 0,
+    status: "Waiting..."
   });
 
-  // State for Active Layer
-  const [activeLayer, setActiveLayer] = useState('health');
+  // --- Data Fetching ---
+  useEffect(() => {
+    const initMap = async () => {
+      try {
+        // 1. Get all active regions
+        const regionsRes = await fetch('/api/oceanographic/regions');
+        const regionList = await regionsRes.json();
+        
+        if (!regionList) {
+            setLoading(false);
+            return;
+        }
 
-  // Mock function to update probe data on marker hover
-  const handleMarkerHover = (data) => {
-    setProbeData(data);
+        // 2. Fetch latest data for each region
+        const markerPromises = regionList.map(async (regionName) => {
+          // Get recent data to find the latest reading
+          const res = await fetch(`/api/oceanographic/parameters?region=${regionName}&start_date=2023-01-01`);
+          const data = await res.json();
+          
+          if (data && data.length > 0) {
+            // Take the last item as "Live"
+            const latest = data[data.length - 1];
+            const coords = REGION_MAP[regionName] || REGION_MAP.default;
+            
+            return {
+              id: latest.ID,
+              region: regionName,
+              // Use data from backend or fallbacks
+              temp: latest.Data.temperature || "0",
+              salinity: latest.Data.salinity || "0",
+              lat: latest.Data.latitude || coords.top, // Ideally backend has this
+              long: latest.Data.longitude || coords.left,
+              ...coords // UI Positioning
+            };
+          }
+          return null;
+        });
+
+        const resolvedMarkers = (await Promise.all(markerPromises)).filter(m => m !== null);
+        setMarkers(resolvedMarkers);
+        
+        // Auto-select first marker for probe
+        if (resolvedMarkers.length > 0) {
+            handleMarkerHover(resolvedMarkers[0]);
+        }
+        
+        setLoading(false);
+      } catch (err) {
+        console.error("Failed to load map data", err);
+        setLoading(false);
+      }
+    };
+
+    initMap();
+  }, []);
+
+  const handleMarkerHover = (marker) => {
+    const status = getStatus(marker.temp, marker.salinity);
+    setProbeData({
+      location: marker.region,
+      coords: `${marker.lat}, ${marker.long}`, // Using raw vals if backend provided, else CSS %
+      temp: `${parseFloat(marker.temp).toFixed(1)}°C`,
+      salinity: `${parseFloat(marker.salinity).toFixed(1)} PSU`,
+      health: status.score,
+      status: status.label,
+      color: status.color
+    });
   };
 
   return (
@@ -39,54 +127,43 @@ const EcosystemTab = () => {
       {/* 1. THE MAP CANVAS (Background & Markers) */}
       {/* ----------------------------------------------------------------------- */}
       
-      {/* Map Background Pattern (Subtle Lat/Long Lines) */}
+      {/* Map Background Pattern */}
       <div className="absolute inset-0" style={{ 
         backgroundImage: 'linear-gradient(#cbd5e1 1px, transparent 1px), linear-gradient(90deg, #cbd5e1 1px, transparent 1px)', 
         backgroundSize: '100px 100px',
         opacity: 0.2 
       }}></div>
 
-      {/* Styled India Coastline Placeholder (In real app, use React-Leaflet GeoJSON) */}
+      {/* Placeholder Coastline */}
       <div className="absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none">
          <MapIcon size={400} className="text-slate-400" />
       </div>
 
-      {/* -- INTERACTIVE MARKERS -- */}
-      
-      {/* Marker 1: Normal (Green) - Kochi */}
-      <MapMarker 
-        top="70%" left="30%" color="emerald" 
-        pulse={false}
-        onHover={() => handleMarkerHover({
-          location: "Kochi Coast (St-04)", coords: "9.93°N, 76.26°E",
-          temp: "27.1°C", salinity: "33.5 PSU", health: 85, status: "Optimal"
-        })}
-      />
+      {/* -- INTERACTIVE MARKERS (Dynamic) -- */}
+      {loading && (
+        <div className="absolute inset-0 flex items-center justify-center">
+            <Loader2 className="animate-spin text-emerald-500" size={40} />
+        </div>
+      )}
 
-      {/* Marker 2: Critical (Red) - Chennai */}
-      <MapMarker 
-        top="65%" left="60%" color="rose" 
-        pulse={true}
-        onHover={() => handleMarkerHover({
-          location: "Chennai Harbor (St-09)", coords: "13.08°N, 80.27°E",
-          temp: "31.2°C", salinity: "28.4 PSU", health: 45, status: "Critical"
-        })}
-      />
-
-      {/* Marker 3: Warning (Amber) - Vizag */}
-      <MapMarker 
-        top="50%" left="65%" color="amber" 
-        pulse={true}
-        onHover={() => handleMarkerHover({
-          location: "Vizag Deep Sea (St-12)", coords: "17.68°N, 83.21°E",
-          temp: "29.8°C", salinity: "35.0 PSU", health: 62, status: "Warning"
-        })}
-      />
+      {!loading && markers.map((m, idx) => {
+          const status = getStatus(m.temp, m.salinity);
+          return (
+            <MapMarker 
+                key={idx}
+                top={m.top} 
+                left={m.left} 
+                color={status.color} 
+                pulse={status.label !== 'Optimal'}
+                onHover={() => handleMarkerHover(m)}
+            />
+          );
+      })}
 
       {/* ----------------------------------------------------------------------- */}
       {/* 2. THE "LAYER COMMAND" CARD (Top-Left) */}
       {/* ----------------------------------------------------------------------- */}
-      <div className="absolute top-6 left-6 w-72 bg-white rounded-2xl shadow-xl border border-slate-100 p-0 overflow-hidden">
+      <div className="absolute top-6 left-6 w-72 bg-white rounded-2xl shadow-xl border border-slate-100 p-0 overflow-hidden z-20">
         <div className="p-4 border-b border-slate-50 bg-slate-50/50">
           <div className="flex items-center gap-2">
             <MapIcon className="text-emerald-600" size={20} />
@@ -112,14 +189,14 @@ const EcosystemTab = () => {
       {/* ----------------------------------------------------------------------- */}
       {/* 3. THE "LIVE DATA PROBE" (Top-Right HUD) */}
       {/* ----------------------------------------------------------------------- */}
-      <div className="absolute top-6 right-6 w-64 bg-white/95 backdrop-blur rounded-2xl shadow-lg border border-slate-100 p-5 transition-all duration-300">
+      <div className="absolute top-6 right-6 w-64 bg-white/95 backdrop-blur rounded-2xl shadow-lg border border-slate-100 p-5 transition-all duration-300 z-20">
         <div className="flex justify-between items-start mb-4">
           <div>
             <div className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">Live Probe</div>
-            <div className="text-sm font-bold text-slate-800">{probeData.location}</div>
-            <div className="text-xs text-slate-500 font-mono mt-0.5">{probeData.coords}</div>
+            <div className="text-sm font-bold text-slate-800 truncate pr-2">{probeData.location}</div>
+            <div className="text-xs text-slate-500 font-mono mt-0.5 truncate">{probeData.coords}</div>
           </div>
-          <div className={`w-2 h-2 rounded-full animate-pulse ${probeData.status === 'Critical' ? 'bg-rose-500' : 'bg-emerald-500'}`}></div>
+          <div className={`w-2 h-2 rounded-full animate-pulse ${probeData.color === 'rose' ? 'bg-rose-500' : probeData.color === 'amber' ? 'bg-amber-500' : 'bg-emerald-500'}`}></div>
         </div>
 
         <div className="grid grid-cols-2 gap-3 pt-3 border-t border-slate-100">
@@ -143,11 +220,9 @@ const EcosystemTab = () => {
       {/* ----------------------------------------------------------------------- */}
       {/* 4. LEGEND & TIME CONTROL (Bottom-Center) */}
       {/* ----------------------------------------------------------------------- */}
-      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-4">
-        {/* The Pill Container */}
+      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-4 z-20">
         <div className="flex items-center bg-white rounded-full shadow-2xl border border-slate-200 px-6 py-3 gap-6">
           
-          {/* Legend Section */}
           <div className="flex flex-col gap-1 w-48">
             <div className="flex justify-between text-[10px] font-bold text-slate-400 uppercase">
               <span>Critical</span>
@@ -158,16 +233,18 @@ const EcosystemTab = () => {
 
           <div className="w-px h-8 bg-slate-200"></div>
 
-          {/* Time Scrubber Section */}
           <div className="flex items-center gap-3">
-            <button className="p-2 rounded-full bg-slate-100 text-slate-600 hover:bg-emerald-500 hover:text-white transition-colors">
+            <button 
+                onClick={() => window.location.reload()}
+                className="p-2 rounded-full bg-slate-100 text-slate-600 hover:bg-emerald-500 hover:text-white transition-colors"
+            >
               <RotateCcw size={14} />
             </button>
             <div className="flex flex-col">
               <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
                 <Clock size={12} className="text-emerald-500" /> Live Feed
               </div>
-              <div className="text-[10px] text-slate-400 font-mono">Updating every 10s</div>
+              <div className="text-[10px] text-slate-400 font-mono">Synced</div>
             </div>
           </div>
 
@@ -177,7 +254,7 @@ const EcosystemTab = () => {
       {/* ----------------------------------------------------------------------- */}
       {/* 5. INTERACTION CONTROLS (Bottom-Right) */}
       {/* ----------------------------------------------------------------------- */}
-      <div className="absolute bottom-8 right-6 flex flex-col gap-3">
+      <div className="absolute bottom-8 right-6 flex flex-col gap-3 z-20">
         <MapControlBtn icon={<Plus size={20} />} />
         <MapControlBtn icon={<Minus size={20} />} />
         <MapControlBtn icon={<Navigation size={18} />} />
@@ -212,7 +289,7 @@ const MapMarker = ({ top, left, color, pulse, onHover }) => {
 
   return (
     <div 
-      className="absolute cursor-pointer group" 
+      className="absolute cursor-pointer group z-10" 
       style={{ top, left }}
       onMouseEnter={onHover}
     >
