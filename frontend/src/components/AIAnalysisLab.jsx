@@ -137,7 +137,8 @@ const AIAnalysisLab = () => {
                       <tr><td>Perimeter</td><td>450 px</td></tr>
                       <tr><td>Aspect Ratio</td><td>1.2</td></tr>
                       <tr><td>Circularity</td><td>0.89</td></tr>
-                      <tr><td>Roundness</td><td>0.92</td></tr>
+                      <tr><td>Length</td><td>0.92</td></tr>
+                      <tr><td>Width</td><td>0.92</td></tr>
                     </tbody>
                   </table>
                 </div>
