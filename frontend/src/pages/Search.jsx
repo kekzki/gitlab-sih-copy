@@ -1,29 +1,85 @@
-import React, { useState } from 'react';
-import Navbar from '../components/Navbar';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import Navbar from '../components/Navbar'; // Assuming you have this wrapper layout elsewhere, but kept import
+import { Link, useNavigate } from 'react-router-dom';
 import SearchTabs from '../components/SearchTabs';
 import SearchResultCard from '../components/SearchResultCard';
 import AIAnalysisLab from '../components/AIAnalysisLab';
-import { Sparkles, Search } from 'lucide-react';
+import { Sparkles, Search, Loader2 } from 'lucide-react';
 
-// Images
-import oceanBg from '../assets/Homepageturtle.jpg'; // Or your main explore bg
+// Images - Keep your existing asset import
+import oceanBg from '../assets/Homepageturtle.jpg'; 
 import './Search.css'; 
 
 const SearchPage = () => {
-  
-  
   const [activeTab, setActiveTab] = useState('explore'); // 'explore' or 'lab'
+  const [searchQuery, setSearchQuery] = useState('');
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
 
-  // Dummy data for Explore Tab
-  const dummyResults = [
-    { id: '8821', type: 'fish', commonName: 'Atlantic Cod', speciesId: '#8821', date: 'Oct 24, 2024' },
-    { id: 'eco-salinity-bob', type: 'ecosystem', parameter: 'Salinity', location: 'Bay of Bengal', source: 'NOAA', date: 'Oct 22, 2024' },
-    { id: '9901', type: 'fish', commonName: 'Mackerel', speciesId: '#9901', date: 'Oct 20, 2024' },
-  ];
+  // 1. Initial Load: Fetch some "Recent" data to populate the page
+  // We'll combine some species and oceanographic logs for variety
+  useEffect(() => {
+    if (activeTab === 'explore' && !isSearching) {
+      fetchRecentData();
+    }
+  }, [activeTab]);
+
+  const fetchRecentData = async () => {
+    setLoading(true);
+    try {
+      // Fetch latest ocean parameters as "recent activity"
+      const oceanRes = await fetch('/api/oceanographic/parameters?region=Pacific&start_date=2023-01-01'); // Broad query
+      const oceanData = await oceanRes.json();
+      
+      // Limit to 6 items and tag them
+      const mixedResults = (oceanData || []).slice(0, 6).map(item => ({
+        id: `ocean-${item.ID}`,
+        type: 'ecosystem',
+        data: item // Pass the whole struct {ID, Region, Data}
+      }));
+
+      setResults(mixedResults);
+    } catch (err) {
+      console.error("Failed to load recent data", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 2. Search Handler (Targeting /api/species)
+  const handleSearch = async (e) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) {
+        setIsSearching(false);
+        fetchRecentData();
+        return;
+    }
+
+    setLoading(true);
+    setIsSearching(true);
+
+    try {
+      const res = await fetch(`/api/species?search=${encodeURIComponent(searchQuery)}`);
+      const data = await res.json();
+      
+      // Transform for the card component
+      const searchResults = (data || []).map(item => ({
+        id: `species-${item.SpeciesID}`,
+        type: 'fish', // This triggers the "Species" card layout
+        data: item // {SpeciesID, Data}
+      }));
+
+      setResults(searchResults);
+    } catch (err) {
+      console.error("Search failed", err);
+      setResults([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    
     <div className="search-page">
       
       <div className="search-container">
@@ -33,36 +89,75 @@ const SearchPage = () => {
         {/* --- TAB 1: EXPLORE DATABASE --- */}
         {activeTab === 'explore' && (
           <div className="explore-content">
+            
             {/* Main Explore Hero */}
             <div className="search-hero-box">
-              <div className="search-hero-bg-image" style={{ backgroundImage: `url(${oceanBg})` }}></div>
+              <div 
+                className="search-hero-bg-image" 
+                style={{ 
+                    backgroundImage: `url(${oceanBg})`,
+                    filter: 'brightness(0.6)' // Added dimming for text readability
+                }}
+              ></div>
+              
               <div className="search-hero-content">
                 <h1 className="search-hero-title">Explore Database</h1>
-                <div className="search-input-wrapper">
-                  <Sparkles color="#2d6a6a" size={20} />
+                
+                <form onSubmit={handleSearch} className="search-input-wrapper">
+                  <Sparkles className="text-cyan-700" size={20} />
                   <input 
                     type="text" 
                     className="search-input" 
-                    placeholder="Ask Paradoxx6 AI... e.g., 'Tuna sightings in 2024'"
+                    placeholder="Search species (e.g. 'Tuna') or regions..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
                   />
-                  <button style={{ border: 'none', background: 'none', cursor: 'pointer' }}>
-                    <Search color="#2d6a6a" size={24} />
+                  <button type="submit" className="border-none bg-transparent cursor-pointer p-0 flex items-center">
+                    {loading ? <Loader2 className="animate-spin text-cyan-700" size={24} /> : <Search className="text-cyan-700" size={24} />}
                   </button>
-                </div>
+                </form>
+
               </div>
             </div>
             
-            <h3 style={{ marginBottom: '1rem', color: '#2d6a6a' }}>Recent Records</h3>
-            <div className="results-grid">
-              {dummyResults.map((item) => (
-                <Link to={`/taxonomy/${item.id}`} key={item.id} className="search-result-link">
-                  <SearchResultCard 
-                    type={item.type} 
-                    data={item} 
-                  />
-                </Link>
-              ))}
+            {/* Results Section */}
+            <div className="mt-8">
+                <h3 className="text-xl font-bold text-slate-700 mb-4 px-2">
+                    {isSearching ? `Search Results (${results.length})` : 'Recent Database Activity'}
+                </h3>
+                
+                {loading && results.length === 0 ? (
+                    <div className="flex justify-center py-20">
+                        <Loader2 className="animate-spin text-cyan-600" size={40} />
+                    </div>
+                ) : results.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {results.map((item) => (
+                        <Link 
+                            to={item.type === 'fish' ? `/taxonomy/${item.data.SpeciesID}` : '#'} 
+                            key={item.id} 
+                            className="block hover:no-underline"
+                        >
+                          <SearchResultCard 
+                            type={item.type} 
+                            data={item.data} 
+                          />
+                        </Link>
+                      ))}
+                    </div>
+                ) : (
+                    <div className="text-center py-20 bg-slate-50 rounded-2xl border border-dashed border-slate-300">
+                        <p className="text-slate-500 font-semibold">No records found matching "{searchQuery}"</p>
+                        <button 
+                            onClick={() => {setSearchQuery(''); setIsSearching(false); fetchRecentData();}}
+                            className="mt-2 text-cyan-600 font-bold hover:underline"
+                        >
+                            Clear Search
+                        </button>
+                    </div>
+                )}
             </div>
+
           </div>
         )}
 
@@ -75,4 +170,4 @@ const SearchPage = () => {
   );
 };
 
-export default SearchPage;
+export default SearchPage

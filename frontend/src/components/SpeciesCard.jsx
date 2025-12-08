@@ -3,40 +3,59 @@ import { Fish } from "lucide-react";
 import "./SpeciesCard.css";
 
 const SpeciesCard = ({ species, onClick }) => {
+  // Extract fields safely from the JSONB 'Data' column
+  // Your Go struct is { SpeciesID: int, Data: { ... } }
+  const details = species.Data || {};
+  
+  const scientificName = details.scientific_name || "Unknown Scientific Name";
+  const commonName = details.vernacularname || details.common_name || "Unknown Common Name";
+  const iucnStatus = details.iucn_status || details.conservation_status;
+  // Assuming image_url might be in the JSON, otherwise null
+  const imageUrl = details.image_url || details.thumbnail_url;
+
   const getStatusColor = (status) => {
-    const colors = {
-      "Critically Endangered": "#dc2626",
-      Endangered: "#ea580c",
-      Vulnerable: "#eab308",
-      "Near Threatened": "#f59e0b",
-      "Least Concern": "#16a34a",
-      "Data Deficient": "#6b7280",
-    };
-    return colors[status] || "#6b7280";
+    if (!status) return "#6b7280";
+    
+    // Normalize status string for matching (case-insensitive)
+    const normalized = status.toLowerCase();
+    
+    if (normalized.includes("critical")) return "#dc2626"; // Red
+    if (normalized.includes("endangered")) return "#ea580c"; // Orange
+    if (normalized.includes("vulnerable")) return "#eab308"; // Yellow
+    if (normalized.includes("near")) return "#f59e0b"; // Amber
+    if (normalized.includes("least")) return "#16a34a"; // Green
+    
+    return "#6b7280"; // Gray/Data Deficient
   };
 
   return (
     <div className="species-card" onClick={() => onClick && onClick(species)}>
       <div className="species-card-image">
-        {species.thumbnailUrl ? (
-          <img src={species.thumbnailUrl} alt={species.vernacularName} />
+        {imageUrl ? (
+          <img src={imageUrl} alt={commonName} />
         ) : (
           <div className="species-card-placeholder">
-            <Fish size={48} />
+            {/* Visual fallback if no image exists in DB */}
+            <Fish size={48} strokeWidth={1.5} />
           </div>
         )}
       </div>
+      
       <div className="species-card-content">
-        <h3 className="species-common-name">{species.vernacularName}</h3>
-        <p className="species-scientific-name">{species.scientificName}</p>
-        {species.iucnStatus && (
+        <h3 className="species-common-name">{commonName}</h3>
+        <p className="species-scientific-name">{scientificName}</p>
+        
+        {iucnStatus && (
           <span
             className="species-status-badge"
-            style={{ backgroundColor: getStatusColor(species.iucnStatus) }}
+            style={{ backgroundColor: getStatusColor(iucnStatus) }}
           >
-            {species.iucnStatus}
+            {iucnStatus}
           </span>
         )}
+        
+        {/* Optional: Add ID for debugging/reference */}
+        <span className="text-[10px] text-gray-400 mt-2 block">ID: {species.SpeciesID}</span>
       </div>
     </div>
   );

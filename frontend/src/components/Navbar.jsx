@@ -1,6 +1,14 @@
 import React from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Home, Compass, Search, BarChart, Eye, Upload } from "lucide-react";
+import { 
+  Home, 
+  Compass, 
+  Search, 
+  BarChart, 
+  Eye, 
+  Upload, 
+  Disc // Using Disc icon for Otoliths (looks like an ear bone/circle)
+} from "lucide-react";
 import AuthStatus from "./AuthStatus";
 import { useAuth } from "../context/AuthContext";
 
@@ -14,6 +22,8 @@ const Navbar = () => {
   const navItems = [
     { name: "Home", path: "/", icon: Home },
     { name: "Taxonomy", path: "/taxonomy", icon: Compass },
+    // Added Otoliths explicitly as it has dedicated backend endpoints (/api/otoliths)
+    { name: "Otoliths", path: "/otoliths", icon: Disc }, 
     { name: "Search", path: "/search", icon: Search },
     { name: "Visualisation", path: "/visualization", icon: Eye },
     { name: "Analysis", path: "/analysis", icon: BarChart },
@@ -50,7 +60,7 @@ const Navbar = () => {
         {isResearcherOrAdmin && (
           <button
             onClick={() => navigate("/upload-dataset")}
-            className="nav-item"
+            className="nav-item upload-btn" // Added a class for specific styling if needed
             title="Upload Data"
           >
             <Upload size={16} />

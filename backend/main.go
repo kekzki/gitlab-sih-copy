@@ -15,11 +15,15 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5"
 )
 
 var dbPool *pgxpool.Pool
+
+// Reusing the client prevents crashes under high load
+var httpClient = &http.Client{
+	Timeout: 30 * time.Second,
+}
 
 // --- Structs ---
 
@@ -105,6 +109,14 @@ type BlastResult struct {
 	BitScore     float64 `json:"bit_score"`
 }
 
+type AIQueryRequest struct {
+	Question string `json:"question"`
+}
+
+type AIQueryResponse struct {
+	GeneratedSQL string `json:"generated_sql"`
+}
+
 // --- Main & Routes ---
 
 func main() {
@@ -183,6 +195,11 @@ func main() {
 	fileServer := http.FileServer(http.Dir(imageDir))
 	http.Handle("/batch_results/", http.StripPrefix("/batch_results/", fileServer))
 
+	imageDir := "E:\\otolith_analysis\\batch_results\\"
+	if _, err := os.Stat(imageDir); os.IsNotExist(err) {
+    	log.Fatalf("Image directory not found: %s", imageDir)
+	}
+
 	// --- 5. REGISTER API ROUTES ---
 	http.HandleFunc("/api/species", getSpecies)
 	http.HandleFunc("/api/species/", getSpeciesDetail)
@@ -206,8 +223,9 @@ func main() {
 
 	http.HandleFunc("/api/blast", handleBlast)
 	http.HandleFunc("/api/analyze-image", handleAnalyzeImage)
+	http.HandleFunc("/api/query/natural-language", handleNaturalLanguageQuery)
 
-	log.Println("🚀 Server starting on :8080")
+	log.Println("Server starting on :8080")
 	log.Fatal(http.ListenAndServe(":8080", enableCORS(http.DefaultServeMux)))
 }
 
@@ -775,6 +793,144 @@ func handleAnalyzeImage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", resp.Header.Get("Content-Type"))
 	w.WriteHeader(resp.StatusCode)
 	io.Copy(w, resp.Body)
+}
+
+// handleNaturalLanguageQuery: Sends text to AI, gets SQL, runs it, returns data + errors
+func handleNaturalLanguageQuery(w http.ResponseWriter, r *http.Request) {
+	// --- 1. Setup & Validation ---
+	if r.Method != "POST" {
+		http.Error(w, "Error: Method must be POST", http.StatusMethodNotAllowed)
+		return
+	}
+	if r.Header.Get("Content-Type") != "application/json" {
+		http.Error(w, "Error: Content-Type must be application/json", http.StatusUnsupportedMediaType)
+		return
+	}
+
+	// --- 2. Parse User Question ---
+	var reqPayload AIQueryRequest
+	if err := json.NewDecoder(r.Body).Decode(&reqPayload); err != nil {
+		http.Error(w, "Error parsing request body: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	log.Printf("🤖 Processing Question: %s", reqPayload.Question)
+
+	// --- 3. Call AI Service ---
+	// Make sure this URL matches your actual Python/ML service
+	aiServiceURL := getEnv("AI_SQL_SERVICE_URL", "http://ml-service:8000/generate-sql")
+	
+	jsonData, _ := json.Marshal(reqPayload)
+	
+	// Create request with context (cancels if user closes tab)
+	req, err := http.NewRequestWithContext(r.Context(), "POST", aiServiceURL, bytes.NewBuffer(jsonData))
+	if err != nil {
+		http.Error(w, "Error creating AI request: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		log.Printf("AI Service Connection Failed: %v", err)
+		http.Error(w, "AI Service Connection Failed: "+err.Error(), http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		// Read the error body from the AI service to see what happened there
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		http.Error(w, "AI Service Error: "+string(bodyBytes), http.StatusBadGateway)
+		return
+	}
+
+	// --- 4. Parse AI Response ---
+	var aiResp AIQueryResponse
+	if err := json.NewDecoder(resp.Body).Decode(&aiResp); err != nil {
+		http.Error(w, "Error decoding AI response: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// --- 5. Security Check (Block DELETE/DROP) ---
+	lowerSQL := strings.ToLower(aiResp.GeneratedSQL)
+	if strings.Contains(lowerSQL, "delete") ||
+		strings.Contains(lowerSQL, "update") ||
+		strings.Contains(lowerSQL, "insert") ||
+		strings.Contains(lowerSQL, "drop") ||
+		strings.Contains(lowerSQL, "alter") ||
+		strings.Contains(lowerSQL, "truncate") {
+		
+		msg := fmt.Sprintf("Blocked unsafe SQL: %s", aiResp.GeneratedSQL)
+		log.Println(msg)
+		http.Error(w, msg, http.StatusForbidden)
+		return
+	}
+
+	log.Printf("🤖 Executing SQL: %s", aiResp.GeneratedSQL)
+
+	// --- 6. Execute SQL ---
+	rows, err := dbPool.Query(r.Context(), aiResp.GeneratedSQL)
+	if err != nil {
+		// SEND THE EXACT SQL ERROR TO FRONTEND
+		log.Printf("DB Error: %v", err)
+		http.Error(w, "SQL Execution Error: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	defer rows.Close()
+
+	// --- 7. Scan Results ---
+	results, err := scanDynamicRows(rows)
+	if err != nil {
+		http.Error(w, "Error scanning rows: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// --- 8. Send Response ---
+	response := map[string]interface{}{
+		"query_used": aiResp.GeneratedSQL,
+		"results":    results,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		log.Printf("Error encoding response: %v", err)
+	}
+}
+
+// scanDynamicRows handles SQL results where we don't know the columns ahead of time
+func scanDynamicRows(rows pgx.Rows) ([]map[string]interface{}, error) {
+	fieldDescriptions := rows.FieldDescriptions()
+	var results []map[string]interface{}
+
+	for rows.Next() {
+		values := make([]interface{}, len(fieldDescriptions))
+		valuePtrs := make([]interface{}, len(fieldDescriptions))
+		for i := range values {
+			valuePtrs[i] = &values[i]
+		}
+
+		if err := rows.Scan(valuePtrs...); err != nil {
+			return nil, err
+		}
+
+		rowMap := make(map[string]interface{})
+		for i, col := range fieldDescriptions {
+			val := values[i]
+			// Convert bytes to string for JSON safety, otherwise standard handling
+			if b, ok := val.([]byte); ok {
+				rowMap[string(col.Name)] = string(b)
+			} else {
+				rowMap[string(col.Name)] = val
+			}
+		}
+		results = append(results, rowMap)
+	}
+	
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	
+	return results, nil
 }
 
 // --- BLAST Functions ---

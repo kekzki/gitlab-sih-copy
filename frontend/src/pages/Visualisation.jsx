@@ -4,6 +4,7 @@ import { Activity, Leaf, Fish, Thermometer, Droplets, BrainCircuit, MapPin, Cale
 // Child Components
 import EnvHealthCharts from '../components/EnvHealthCharts';
 import BiodiversityCharts from '../components/BiodiversityCharts';
+import RegionsApiSelect from '../components/RegionsApiSelect';
 // (Keep other imports if you have code for them, otherwise comment out)
 
 const TABS = [
@@ -45,20 +46,11 @@ const Visualisation = () => {
             <MapPin size={18} className="text-blue-600" />
             <div className="flex flex-col">
               <label className="text-[10px] font-bold text-slate-400 uppercase">Region</label>
-              <select 
+              <RegionsApiSelect
                 value={filters.location}
-                onChange={(e) => setFilters({...filters, location: e.target.value})}
+                onChange={(val) => setFilters({ ...filters, location: val })}
                 className="bg-transparent font-bold text-slate-700 text-sm focus:outline-none cursor-pointer min-w-[150px]"
-              >
-                {/* "Display all regions in db" */}
-                <option>Bay of Bengal</option>
-                <option>Arabian Sea</option>
-                <option>Indian Ocean (South)</option>
-                <option>Lakshadweep Sea</option>
-                <option>Andaman Sea</option>
-                <option>Gulf of Mannar</option>
-                <option>Kochi Coast</option>
-              </select>
+              />
             </div>
           </div>
 
