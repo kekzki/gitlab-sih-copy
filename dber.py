@@ -1,42 +1,32 @@
 import os
 import psycopg2
-from psycopg2 import sql
 import boto3
 
 
-def get_env(key, default):
-    return os.getenv(key, default)
-
 def main():
-    # Try DATABASE_URL first
-    # db_url = os.getenv("DATABASE_URL")
-    db_url = "postgres://user:somepass@db:5432/myappdb?sslmode=disable"
+    # --- DATABASE CONNECTION ---
+    DB_HOST = os.getenv("DB_HOST")
+    DB_PORT = os.getenv("DB_PORT")
+    DB_USER = os.getenv("DB_USER")
+    DB_PASS = os.getenv("DB_PASSWORD")
+    DB_NAME = os.getenv("DB_NAME")
 
-    if not db_url:
-        # Fallback identical to Go code logic
-        DB_HOST = get_env("DB_HOST", "localhost")
-        DB_PORT = get_env("DB_PORT", "5432")
-        DB_USER = get_env("DB_USER", "postgres")
-        DB_PASS = os.getenv("DB_PASSWORD")
-        DB_NAME = get_env("DB_NAME", "postgres")
+    if not DB_PASS:
+        print("❌ DB_PASSWORD must be set")
+        return
 
-        if not DB_PASS:
-            print("❌ ERROR: DB_PASSWORD or DATABASE_URL must be set")
-            return
-
-        db_url = f"postgres://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}?sslmode=disable"
-        # postgres://user:somepass@db:5432/myappdb?sslmode=disable
-
-    print("Connecting using URL:", db_url)
-    print("Attempting to connect to PostgreSQL...")
+    db_url = f"postgres://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+    print("Connecting to PostgreSQL:", db_url)
 
     try:
         conn = psycopg2.connect(db_url)
+        conn.autocommit = False  # ⛔ IMPORTANT: disable autocommit
+        cur = conn.cursor()
+        print("✅ Connected to PostgreSQL")
     except Exception as e:
-        print(f"❌ Connection failed: {e}")
+        print("❌ Database connection failed:", e)
         return
 
-    print("✅ Connection established successfully.")
     print("Fetching list of tables...")
 
     query = """

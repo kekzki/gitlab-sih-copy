@@ -5,18 +5,17 @@ import boto3
 
 def main():
     # --- DATABASE CONNECTION ---
-    DB_HOST = os.getenv("DB_HOST", "localhost")
-    DB_PORT = os.getenv("DB_PORT", "5432")
-    DB_USER = os.getenv("DB_USER", "postgres")
-    DB_PASS = os.getenv("DB_PASSWORD", "somepass")
-    DB_NAME = os.getenv("DB_NAME", "postgres")
+    DB_HOST = os.getenv("DB_HOST")
+    DB_PORT = os.getenv("DB_PORT")
+    DB_USER = os.getenv("DB_USER")
+    DB_PASS = os.getenv("DB_PASSWORD")
+    DB_NAME = os.getenv("DB_NAME")
 
     if not DB_PASS:
         print("❌ DB_PASSWORD must be set")
         return
 
     db_url = f"postgres://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
-    db_url = "postgres://user:somepass@db:5432/myappdb?sslmode=disable"
     print("Connecting to PostgreSQL:", db_url)
 
     try:
@@ -30,9 +29,9 @@ def main():
 
     # --- GARAGE / S3 CONFIG ---
     S3_ENDPOINT = os.getenv("S3_ENDPOINT")
-    ACCESS_KEY = os.getenv("S3_ACCESS_KEY_ID")
-    SECRET_KEY = os.getenv("S3_SECRET_ACCESS_KEY")
-    BUCKET = "images"
+    ACCESS_KEY = os.getenv("GARAGE_ACCESS_KEY")
+    SECRET_KEY = os.getenv("GARAGE_SECRET_KEY")
+    BUCKET = "hat"
 
     if not S3_ENDPOINT or not ACCESS_KEY or not SECRET_KEY:
         print("❌ Missing S3 credentials or endpoint")

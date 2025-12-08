@@ -50,7 +50,7 @@ services:
     networks:
       - dokploy-network
     ports:
-      - "5432:5432"
+      - "5430:5432"
     volumes:
       # Using named volume for reliability
       - db_data:/var/lib/postgresql/data
