@@ -6,25 +6,43 @@ const SpeciesGrid = ({ species, onSpeciesClick, resultCount }) => {
   const [sortBy, setSortBy] = useState("name-asc");
 
   const sortedSpecies = useMemo(() => {
+    if (!species || !Array.isArray(species)) return [];
+
     return [...species].sort((a, b) => {
+      // Helper to safely access nested JSONB data
+      // Fallback to empty string/date if missing to avoid crashes
+      const getVal = (item, key) => (item.Data && item.Data[key] ? item.Data[key] : "");
+      
       switch (sortBy) {
         case "name-asc":
-          return a.vernacularName.localeCompare(b.vernacularName);
+          return getVal(a, "vernacularname").localeCompare(getVal(b, "vernacularname"));
         case "name-desc":
-          return b.vernacularName.localeCompare(a.vernacularName);
+          return getVal(b, "vernacularname").localeCompare(getVal(a, "vernacularname"));
+        
         case "recent":
-          return new Date(b.lastSightingDate) - new Date(a.lastSightingDate);
+          const dateA = new Date(getVal(a, "eventdate") || 0);
+          const dateB = new Date(getVal(b, "eventdate") || 0);
+          return dateB - dateA; // Newest first
+        
         case "conservation":
           const statusOrder = {
             "Critically Endangered": 0,
-            Endangered: 1,
-            Vulnerable: 2,
+            "Endangered": 1,
+            "Vulnerable": 2,
             "Near Threatened": 3,
             "Least Concern": 4,
+            "Data Deficient": 5,
+            "Unknown": 6
           };
-          return (
-            (statusOrder[a.iucnStatus] || 5) - (statusOrder[b.iucnStatus] || 5)
-          );
+          
+          const statusA = getVal(a, "iucn_status") || "Unknown";
+          const statusB = getVal(b, "iucn_status") || "Unknown";
+          
+          const scoreA = statusOrder[statusA] !== undefined ? statusOrder[statusA] : 6;
+          const scoreB = statusOrder[statusB] !== undefined ? statusOrder[statusB] : 6;
+          
+          return scoreA - scoreB; // Higher priority (lower score) first
+          
         default:
           return 0;
       }
@@ -55,7 +73,8 @@ const SpeciesGrid = ({ species, onSpeciesClick, resultCount }) => {
 
       <div className="species-grid">
         {sortedSpecies.map((sp) => (
-          <SpeciesCard key={sp.id} species={sp} onClick={onSpeciesClick} />
+          // Use SpeciesID from main.go struct as key
+          <SpeciesCard key={sp.SpeciesID} species={sp} onClick={onSpeciesClick} />
         ))}
       </div>
 
