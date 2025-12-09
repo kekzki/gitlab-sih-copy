@@ -15,7 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 var dbPool *pgxpool.Pool
@@ -196,7 +196,7 @@ func main() {
 	http.Handle("/batch_results/", http.StripPrefix("/batch_results/", fileServer))
 
 	imageDir := "E:\\otolith_analysis\\batch_results\\"
-	if _, err := os.Stat(imageDir); os.IsNotExist(err) {
+	if _, err = os.Stat(imageDir); os.IsNotExist(err) {
     	log.Fatalf("Image directory not found: %s", imageDir)
 	}
 

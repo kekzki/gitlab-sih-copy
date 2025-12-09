@@ -1,69 +1,3 @@
-#version: "3.8"
-
-#services:
- # frontend:
-  #  build:
-   #   context: ./frontend
-    #  dockerfile: Dockerfile
-     # args:
-      #  VITE_SUPABASE_URL: https://vztwpbwjhxgawthkzyqx.supabase.co/
-       # VITE_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ6dHdwYndqaHhnYXd0aGt6eXF4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ1MDkyODksImV4cCI6MjA4MDA4NTI4OX0.U81wxeyHIOzMEg-Gi_vj6JwwxXFkEceAlWBSchorp6s
-    #networks:
-     # - dokploy-network
-   # environment:
-    #  - VITE_API_URL=http://api.paradoxx6.duckdns.org/
-
-  #backend:
-   # build:
-    #  context: ./backend
-     # dockerfile: Dockerfile
-    #networks:
-     # - dokploy-network
-    #ports:
-     # - "8080:8080"
-    #depends_on:
-     # - db
-      #- ml-service
-    #environment:
-     # - NODE_ENV=production
-      # Uses variable from .env
-      #- DATABASE_URL=postgres://user:somepass@db:5432/myappdb?sslmode=disable
-#      - JWT_SECRET=mysec
-      # This remains hardcoded as it is an internal docker network address
-#      - ML_SERVICE_URL=http://ml-service:8000/analyze
-
-#  ml-service:
-#    build:
-      # Correct path based on your file structure
-#      context: ./backend/otolith_ml_service
-#      dockerfile: Dockerfile
-#    networks:
-#      - dokploy-network
-#    expose:
-#      - "8000"
-
-#  db:
-#    image: postgres:16-alpine
-#    networks:
-#      - dokploy-network
-#    ports:
-#      - "5432:5432"
-#    volumes:
-      # Using named volume for reliability
-#      - db_data:/var/lib/postgresql/data
-#      - ./paradoxx_db.sql:/docker-entrypoint-initdb.d/init.sql
-#    environment:
-#      - POSTGRES_USER=user
-#      - POSTGRES_PASSWORD=somepass
-#      - POSTGRES_DB=myappdb
-
-#networks:
-#  dokploy-network:
-#    driver: bridge
-
-#volumes:
-#  db_data:
-
 version: "3.8"
 
 services:
@@ -84,14 +18,14 @@ services:
   backend:
     build:
       context: ./backend
-      dockerfile: Dockerfile
+      # dockerfile: Dockerfile
     networks:
       - dokploy-network
     ports:
       - "8080:8080"
     depends_on:
       - db
-      - ml-service
+      # - ml-service
     volumes:
       # --- CRITICAL FIX: READ ACCESS ---
       # Allows Go to see the images created by Python
@@ -101,28 +35,26 @@ services:
       - DATABASE_URL=postgres://user:somepass@db:5432/myappdb?sslmode=disable
       - JWT_SECRET=mysec
       - ML_SERVICE_URL=http://ml-service:8000/analyze
-      - S3_ENDPOINT=http://localhost:3900
-      - S3_ACCESS_KEY_ID=GK8c13f4e46f15632bb206b2b6
-      - S3_SECRET_ACCESS_KEY=4e27a382583700e3b06c2d923745c2c846f31d0e7e109e7d8895d68c27741ee3
-  ml-service:
-    build:
-      context: ./backend/otolith_ml_service
-      dockerfile: Dockerfile
-    networks:
-      - dokploy-network
-    expose:
-      - "8000"
-    volumes:
-      # --- CRITICAL FIX: WRITE ACCESS ---
-      # Tells Python to save images here so Go can see them
-      - shared_images:/app/batch_results
+
+  # ml-service:
+  #   build:
+  #     context: ./backend/otolith_ml_service
+  #     dockerfile: Dockerfile
+  #   networks:
+  #     - dokploy-network
+  #   expose:
+  #     - "8000"
+  #   volumes:
+  #     # --- CRITICAL FIX: WRITE ACCESS ---
+  #     # Tells Python to save images here so Go can see them
+  #     - shared_images:/app/batch_results
 
   db:
     image: postgres:16-alpine
     networks:
       - dokploy-network
     ports:
-      - "5430:5432"
+      - "5432:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
       - ./paradoxx_db.sql:/docker-entrypoint-initdb.d/init.sql
@@ -131,34 +63,11 @@ services:
       - POSTGRES_PASSWORD=somepass
       - POSTGRES_DB=myappdb
 
-  garage:
-    image: dxflrs/garage:v2.1.0
-    networks:
-      - dokploy-network
-    ports:
-      - "3900:3900"
-      - "4001:4001"
-    volumes:
-      - ./garage.toml:/etc/garage.toml:ro
-      - garage_data:/var/lib/garage/data
-      - garage_meta:/var/lib/garage/meta
-    environment:
-      - GARAGE_S3_KEY_ID=GK8c13f4e46f15632bb206b2b6
-      - GARAGE_S3_SECRET_KEY=4e27a382583700e3b06c2d923745c2c846f31d0e7e109e7d8895d68c27741ee3
-      - GARAGE_RPC_SECRET=a6d74b7b57ea676976e00a9839ff4c9499b376d0bc99e3ee785e1bd03bbe76c6
-      - RUST_LOG=info
-    command: ["/garage", "server"]
-    restart: unless-stopped
-
 networks:
   dokploy-network:
     driver: bridge
 
 volumes:
-  garage_data:
-    driver: local
-  garage_meta:
-    driver: local
   db_data:
   # Define the new shared volume
   shared_images:
