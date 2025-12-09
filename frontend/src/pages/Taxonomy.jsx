@@ -1,9 +1,10 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import TaxonomySearch from "../components/TaxonomySearch";
 import FilterSidebar from "../components/FilterSidebar";
 import SpeciesGrid from "../components/SpeciesGrid";
-import { mockSpeciesData } from "../mockSpeciesData";
+// import { mockSpeciesData } from "../mockSpeciesData"; // <-- REMOVED MOCK DATA
+import { fetchSpeciesData } from "../api/species"; // <-- IMPORT NEW API FUNCTION
 import "./Taxonomy.css";
 
 const Taxonomy = () => {
@@ -17,6 +18,28 @@ const Taxonomy = () => {
     dataQuality: [],
     depthRange: [0, 5000],
   });
+  
+  // New state to hold data fetched from the backend BEFORE client-side filtering
+  const [rawSpeciesData, setRawSpeciesData] = useState([]); 
+  const [loading, setLoading] = useState(false);
+
+  // --- API DATA FETCHING ---
+  useEffect(() => {
+    const loadData = async () => {
+      setLoading(true);
+      // Pass 'searchTerm' and the current 'classifications' to the API
+      const data = await fetchSpeciesData(searchTerm, filters.classifications);
+      setRawSpeciesData(data);
+      setLoading(false);
+    };
+
+    // Use a slight debounce for search and filter changes sent to the API
+    const debounceTimer = setTimeout(() => {
+      loadData();
+    }, 300);
+
+    return () => clearTimeout(debounceTimer); // Cleanup on unmount or re-render
+  }, [searchTerm, filters.classifications]); // Re-fetch only when these two API-related states change
 
   const handleSearch = (term) => {
     setSearchTerm(term);
@@ -30,27 +53,28 @@ const Taxonomy = () => {
     navigate(`/taxonomy/${species.id}`);
   };
 
-  // Filter species based on ALL conditions (AND logic)
+  // --- CLIENT-SIDE FILTERING (For unsupported filters like Region, IUCN, Depth) ---
   const filteredSpecies = useMemo(() => {
-    return mockSpeciesData.filter((species) => {
-      // 1. SEARCH FILTER
-      if (searchTerm) {
-        const searchLower = searchTerm.toLowerCase();
-        const matchesSearch =
-          species.vernacularName.toLowerCase().includes(searchLower) ||
-          species.scientificName.toLowerCase().includes(searchLower);
-        if (!matchesSearch) return false;
-      }
+    // Start with the data fetched from the API (which is already pre-filtered by search/class)
+    let speciesToFilter = rawSpeciesData;
 
-      // 2. CLASSIFICATION FILTER (Class)
-      if (filters.classifications.length > 0) {
-        if (!filters.classifications.includes(species.class)) {
-          return false;
+    // NOTE: Search and Class are handled by the API call in useEffect.
+    // We only need to handle the filters NOT supported by the /api/species endpoint here.
+
+    // 1. SEARCH FILTER (Handled by API, but keeping for consistency if search is slow/complex)
+    if (searchTerm && filters.classifications.length > 1) { 
+        // If more than one class is selected, the API only filtered by the first one,
+        // so we must finish the classification filter here.
+        if (filters.classifications.length > 1) {
+            speciesToFilter = speciesToFilter.filter(species => 
+                filters.classifications.includes(species.class)
+            );
         }
-      }
-
-      // 3. OBSERVATION PERIOD FILTER (Last sighting date)
-      if (filters.observationPeriod) {
+    }
+    
+    // 2. OBSERVATION PERIOD FILTER (Last sighting date - NOT supported by Go API, filter locally)
+    if (filters.observationPeriod) {
+      speciesToFilter = speciesToFilter.filter((species) => {
         const lastSighting = new Date(species.lastSightingDate);
         const now = new Date();
         const daysDifference = Math.floor(
@@ -80,48 +104,47 @@ const Taxonomy = () => {
           default:
             isInRange = true;
         }
+        return isInRange;
+      });
+    }
 
-        if (!isInRange) return false;
-      }
-
-      // 4. GEOGRAPHIC REGION FILTER
-      if (filters.regions.length > 0) {
-        const hasMatchingRegion = species.reportedRegions.some((region) =>
+    // 3. GEOGRAPHIC REGION FILTER (NOT supported by Go API, filter locally)
+    if (filters.regions.length > 0) {
+      speciesToFilter = speciesToFilter.filter((species) => {
+        return species.reportedRegions.some((region) =>
           filters.regions.includes(region)
         );
-        if (!hasMatchingRegion) return false;
-      }
+      });
+    }
 
-      // 5. CONSERVATION STATUS FILTER
-      if (filters.conservationStatus.length > 0) {
-        if (!filters.conservationStatus.includes(species.iucnStatus)) {
-          return false;
-        }
-      }
+    // 4. CONSERVATION STATUS FILTER (NOT supported by Go API, filter locally)
+    if (filters.conservationStatus.length > 0) {
+      speciesToFilter = speciesToFilter.filter((species) =>
+        filters.conservationStatus.includes(species.iucnStatus)
+      );
+    }
 
-      // 6. DATA QUALITY FILTER
-      if (filters.dataQuality.length > 0) {
-        if (!filters.dataQuality.includes(species.dataQuality)) {
-          return false;
-        }
-      }
+    // 5. DATA QUALITY FILTER (NOT supported by Go API, filter locally)
+    if (filters.dataQuality.length > 0) {
+      speciesToFilter = speciesToFilter.filter((species) =>
+        filters.dataQuality.includes(species.dataQuality)
+      );
+    }
 
-      // 7. HABITAT DEPTH FILTER
-      if (filters.depthRange) {
+    // 6. HABITAT DEPTH FILTER (NOT supported by Go API, filter locally)
+    if (filters.depthRange) {
+      speciesToFilter = speciesToFilter.filter((species) => {
         const [minDepth, maxDepth] = filters.depthRange;
-        // Check if species depth range overlaps with selected range
         const speciesMinDepth = species.depthRangeMin;
         const speciesMaxDepth = species.depthRangeMax;
 
-        // No overlap if: species ends before min OR species starts after max
-        if (speciesMaxDepth < minDepth || speciesMinDepth > maxDepth) {
-          return false;
-        }
-      }
+        // Check for overlap:
+        return !(speciesMaxDepth < minDepth || speciesMinDepth > maxDepth);
+      });
+    }
 
-      return true;
-    });
-  }, [searchTerm, filters]);
+    return speciesToFilter;
+  }, [rawSpeciesData, filters]); // Depends only on raw data and client-side filters
 
   return (
     <div className="taxonomy-page">
@@ -130,12 +153,14 @@ const Taxonomy = () => {
       <div className="taxonomy-content">
         <FilterSidebar
           onFilterChange={handleFilterChange}
-          allSpecies={mockSpeciesData}
+          // Pass the currently fetched species for dynamic filter options
+          allSpecies={rawSpeciesData} 
         />
         <SpeciesGrid
           species={filteredSpecies}
           onSpeciesClick={handleSpeciesClick}
-          resultCount={filteredSpecies.length}
+          resultCount={loading ? "..." : filteredSpecies.length}
+          loading={loading} // Pass loading state to SpeciesGrid
         />
       </div>
     </div>

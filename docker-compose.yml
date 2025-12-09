@@ -10,13 +10,15 @@ services:
         VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
     networks:
       - dokploy-network
+    ports:
+      - "3080:80"
     environment:
       - VITE_API_URL=${VITE_API_URL}
 
   backend:
     build:
       context: ./backend
-      dockerfile: Dockerfile
+      # dockerfile: Dockerfile
     networks:
       - dokploy-network
     ports:

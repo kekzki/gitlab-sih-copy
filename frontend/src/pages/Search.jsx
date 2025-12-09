@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import Navbar from '../components/Navbar';
 import { Link } from 'react-router-dom';
 import SearchTabs from '../components/SearchTabs';
 import SearchResultCard from '../components/SearchResultCard';
