@@ -101,7 +101,9 @@ services:
       - DATABASE_URL=postgres://user:somepass@db:5432/myappdb?sslmode=disable
       - JWT_SECRET=mysec
       - ML_SERVICE_URL=http://ml-service:8000/analyze
-
+      - S3_ENDPOINT=http://localhost:3900
+      - S3_ACCESS_KEY_ID=GK8c13f4e46f15632bb206b2b6
+      - S3_SECRET_ACCESS_KEY=4e27a382583700e3b06c2d923745c2c846f31d0e7e109e7d8895d68c27741ee3
   ml-service:
     build:
       context: ./backend/otolith_ml_service
@@ -120,7 +122,7 @@ services:
     networks:
       - dokploy-network
     ports:
-      - "5432:5432"
+      - "5430:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
       - ./paradoxx_db.sql:/docker-entrypoint-initdb.d/init.sql
@@ -129,11 +131,34 @@ services:
       - POSTGRES_PASSWORD=somepass
       - POSTGRES_DB=myappdb
 
+  garage:
+    image: dxflrs/garage:v2.1.0
+    networks:
+      - dokploy-network
+    ports:
+      - "3900:3900"
+      - "4001:4001"
+    volumes:
+      - ./garage.toml:/etc/garage.toml:ro
+      - garage_data:/var/lib/garage/data
+      - garage_meta:/var/lib/garage/meta
+    environment:
+      - GARAGE_S3_KEY_ID=GK8c13f4e46f15632bb206b2b6
+      - GARAGE_S3_SECRET_KEY=4e27a382583700e3b06c2d923745c2c846f31d0e7e109e7d8895d68c27741ee3
+      - GARAGE_RPC_SECRET=a6d74b7b57ea676976e00a9839ff4c9499b376d0bc99e3ee785e1bd03bbe76c6
+      - RUST_LOG=info
+    command: ["/garage", "server"]
+    restart: unless-stopped
+
 networks:
   dokploy-network:
     driver: bridge
 
 volumes:
+  garage_data:
+    driver: local
+  garage_meta:
+    driver: local
   db_data:
   # Define the new shared volume
   shared_images:
