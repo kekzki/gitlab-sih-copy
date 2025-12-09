@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 	"github.com/jackc/pgx/v5"
+	"github.com/agnivade/levenshtein"
 )
 
 var dbPool *pgxpool.Pool
@@ -195,11 +196,6 @@ func main() {
 	fileServer := http.FileServer(http.Dir(imageDir))
 	http.Handle("/batch_results/", http.StripPrefix("/batch_results/", fileServer))
 
-	imageDir := "E:\\otolith_analysis\\batch_results\\"
-	if _, err := os.Stat(imageDir); os.IsNotExist(err) {
-    	log.Fatalf("Image directory not found: %s", imageDir)
-	}
-
 	// --- 5. REGISTER API ROUTES ---
 	http.HandleFunc("/api/species", getSpecies)
 	http.HandleFunc("/api/species/", getSpeciesDetail)
@@ -224,6 +220,8 @@ func main() {
 	http.HandleFunc("/api/blast", handleBlast)
 	http.HandleFunc("/api/analyze-image", handleAnalyzeImage)
 	http.HandleFunc("/api/query/natural-language", handleNaturalLanguageQuery)
+
+	http.HandleFunc("/api/upload/smart", handleSmartUpload)
 
 	log.Println("Server starting on :8080")
 	log.Fatal(http.ListenAndServe(":8080", enableCORS(http.DefaultServeMux)))
@@ -1119,3 +1117,5 @@ func getNCBIResults(rid string) ([]BlastResult, error) {
 
 	return results, nil
 }
+
+
