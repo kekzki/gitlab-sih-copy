@@ -122,40 +122,33 @@ type AIQueryResponse struct {
 
 func main() {
 	// --- 1. CONFIGURE DATABASE CONNECTION ---
-	dbURL := os.Getenv("DATABASE_URL")
-	if dbURL == "" {
-		// Fallback for development
-		dbHost := getEnv("DB_HOST", "localhost")
-		dbPort := getEnv("DB_PORT", "5432")
-		dbUser := getEnv("DB_USER", "postgres")
-		dbPass := os.Getenv("DB_PASSWORD")
-		dbName := getEnv("DB_NAME", "postgres")
+	// --- 1. CONFIGURE DATABASE CONNECTION ---
+    
+    // Explicitly set the database URL, overriding environment variable checks for simplicity
+    const dbURL = "postgres://user:somepass@localhost:5430/myappdb"
+    log.Printf("Using explicit database URL: %s", dbURL) // Log the connection string
 
-		if dbPass == "" {
-			log.Fatal("FATAL: DATABASE_URL or DB_PASSWORD environment variable must be set")
-		}
+    // --- 2. CREATE CONNECTION POOL ---
+    var err error
+    
+    // Parse the explicit URL config
+    config, err := pgxpool.ParseConfig(dbURL)
+    if err != nil {
+        // NOTE: The log message is updated to reflect the explicit URL usage.
+        log.Fatal("Unable to parse database connection URL:", err) 
+    }
 
-		dbURL = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
-			dbUser, dbPass, dbHost, dbPort, dbName)
-	}
+    // Optional: Configure pool settings
+    config.MaxConns = 10
+    config.MinConns = 2
 
-	// --- 2. CREATE CONNECTION POOL ---
-	var err error
-	config, err := pgxpool.ParseConfig(dbURL)
-	if err != nil {
-		log.Fatal("Unable to parse DATABASE_URL:", err)
-	}
-
-	// Optional: Configure pool settings
-	config.MaxConns = 10
-	config.MinConns = 2
-
-	dbPool, err = pgxpool.NewWithConfig(context.Background(), config)
-	if err != nil {
-		log.Fatal("Unable to create connection pool:", err)
-	}
-	defer dbPool.Close()
-
+    // Initialize the connection pool
+    dbPool, err = pgxpool.NewWithConfig(context.Background(), config)
+    if err != nil {
+        log.Fatal("Unable to create connection pool:", err)
+    }
+    // Defer the pool closure (kept as good practice, but ensure it's in main or a suitable function)
+    defer dbPool.Close()
 	// --- 3. TEST CONNECTION ---
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -208,10 +201,9 @@ func main() {
 	http.HandleFunc("/api/occurrence/latest", getLatestOccurrence)
 	http.HandleFunc("/api/occurrence", getOccurrenceData)
 
-	http.HandleFunc("/api/oceanographic/parameters", getOceanographicParameters)
-	http.HandleFunc("/api/oceanographic/regions", getOceanographicRegions)
+	http.HandleFunc("/api/oceanographic/parameters", OceanographicRegions)
 
-	http.HandleFunc("/api/biodiversity/metrics", getBiodiversityMetrics)
+	http.HandleFunc("/api/biodiversity/metrics", handleGetBiodiversityMetrics) // Use the new handler
 
 	http.HandleFunc("/api/marine-trends/abundance", getMonthlyAbundance)
 	http.HandleFunc("/api/marine-trends/juvenile-adult", getJuvenileAdultRatio)
@@ -562,51 +554,33 @@ func getOceanographicRegions(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(regions)
-}
+}aOop..e
+)"" {
+		http.Error(w, "Missing required query parameter: region", http.StatusBadRequest)
 
-func getOceanographicParameters(w http.ResponseWriter, r *http.Request) {
-	query := "SELECT id, region, upload_id, data FROM oceanographic_data WHERE 1=1"
-	args := []interface{}{}
-	argCount := 1
-
-	if region := r.URL.Query().Get("region"); region != "" {
-		query += fmt.Sprintf(" AND region = $%d", argCount)
-		args = append(args, region)
-		argCount++
-	}
-
-	if startDate := r.URL.Query().Get("start_date"); startDate != "" {
-		query += fmt.Sprintf(" AND (data->>'eventdate')::date >= $%d", argCount)
-		args = append(args, startDate)
-		argCount++
-	}
-
-	if endDate := r.URL.Query().Get("end_date"); endDate != "" {
-		query += fmt.Sprintf(" AND (data->>'eventdate')::date <= $%d", argCount)
-		args = append(args, endDate)
-		argCount++
-	}
-
-	query += " ORDER BY (data->>'eventdate')::date"
-
-	rows, err := dbPool.Query(context.Background(), query, args...)
+	// 2. Call the fetcher function from envhealth_fetcher.go
+	parameters, err := fetchEnvHealthData(dbPool, region, startDate, endDate)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Failed to fetch oceanographic parameters: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-	defer rows.Close()
 
-	var parameters []OceanographicData
-	for rows.Next() {
-		var p OceanographicData
-		if err := rows.Scan(&p.ID, &p.Region, &p.UploadID, &p.Data); err != nil {
-			continue
-		}
-		parameters = append(parameters, p)
+	// 3. Send the responseaeepplicat
+/1. Extract and validate query para"hr
+
+		http.Error(w, "Missing required query parameter: year", http.StatusBadRequest)
+		return
+	}
+rconv.Atoi(yearStr)
+	if err != nil {
+		tcher function
+es in biodiversity_fetcher.go
+		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(parameters)
+	// 3. Send the response
+	wity metrics response: %v", err)
+	}
 }
 
 func getBiodiversityMetrics(w http.ResponseWriter, r *http.Request) {
@@ -1117,5 +1091,3 @@ func getNCBIResults(rid string) ([]BlastResult, error) {
 
 	return results, nil
 }
-
-

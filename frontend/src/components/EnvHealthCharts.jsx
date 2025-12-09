@@ -1,277 +1,264 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  ResponsiveContainer, PieChart, Pie, Cell, ComposedChart, Bar, BarChart
+  ResponsiveContainer,
 } from "recharts";
-import { Loader2 } from 'lucide-react';
+import { Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 
-// Maps user-friendly labels to actual JSON keys in your database
+// --- Configuration Mapping (Must match Go/Python logic) ---
 const PARAM_KEY_MAP = {
-  // Biochemical
-  "pH Level": "ph",
-  "Dissolved Oxygen": "dissolved_oxygen",
-  "CO2 Concentration": "co2",
-  "Total Alkalinity": "alkalinity",
-  // Physical
-  "SST": "temperature",
-  "Salinity": "salinity",
-  "Water Depth": "depth",
-  "Current Velocity": "current_speed",
-  // Nutrients
-  "Nitrate": "nitrate",
-  "Phosphate": "phosphate",
-  "Silicate": "silicate"
+    "pH Level": "pHLevel",
+    "Dissolved Oxygen": "dissolvedOxygen_milligramsPerLiter",
+    "CO2 Concentration": "CO2_microatm",
+    "Total Alkalinity": "alkalinity_micromolPeriKilogram",
+    "SST": "SST_degreeCelcius",
+    "Salinity": "salinity_PSU",
+    "Water Depth": "minimumDepthInMeters",
+    "Current Velocity": "currentVelocity_metersPerSecond",
+    "Nitrate": "nitrate_micromolPerLitre",
+    "Phosphate": "phosphate_micromolPerLitre",
+    "Silicate": "silicate_micromolPerLitre",
 };
 
 const CATEGORIES = {
-  Biochemical: ["pH Level", "Dissolved Oxygen", "CO2 Concentration"],
+  Biochemical: ["pH Level", "Dissolved Oxygen", "CO2 Concentration", "Total Alkalinity"],
   Physical: ["SST", "Salinity", "Water Depth", "Current Velocity"],
-  Nutrients: ["Nitrate", "Phosphate", "Silicate"]
+  Nutrients: ["Nitrate", "Phosphate", "Silicate"],
 };
 
-// Mock data for charts not yet supported by backend
-const MOCK_CONTAMINANTS = [
-  { name: 'Plastic', value: 45, color: '#f87171' },
-  { name: 'Oil', value: 25, color: '#fbbf24' },
-  { name: 'Heavy Metals', value: 20, color: '#60a5fa' },
-  { name: 'Pesticides', value: 10, color: '#a78bfa' },
-];
+// Map parameter to a unique color for the charts
+const PARAM_COLORS = {
+    "pH Level": "#06b6d4",        // Cyan
+    "Dissolved Oxygen": "#f59e0b", // Amber
+    "CO2 Concentration": "#ef4444", // Red
+    "Total Alkalinity": "#84cc16",  // Lime
+    "SST": "#3b82f6",             // Blue
+    "Salinity": "#a855f7",        // Violet
+    "Water Depth": "#10b981",     // Emerald
+    "Current Velocity": "#f97316", // Orange
+    "Nitrate": "#6366f1",         // Indigo
+    "Phosphate": "#ec4899",       // Pink
+    "Silicate": "#6b7280",        // Gray
+};
 
-const MOCK_HAB = [
-  { year: 2020, count: 2 },
-  { year: 2021, count: 5 },
-  { year: 2022, count: 3 },
-  { year: 2023, count: 8 },
-  { year: 2024, count: 4 },
-];
+const allParameters = Object.values(CATEGORIES).flat();
 
-const EnvHealthCharts = ({ filters }) => {
-  const [selectedParams, setSelectedParams] = useState(["pH Level", "SST"]);
+const MultiParamCharts = ({ filters }) => {
+  // Use a map to track visibility: { "pH Level": true, "SST": true, ... }
+  const [paramVisibility, setParamVisibility] = useState(() => {
+    return allParameters.reduce((acc, param) => {
+        // Default: pH Level and SST are visible, the rest are hidden
+        acc[param] = param === "pH Level" || param === "SST"; 
+        return acc;
+    }, {});
+  });
+  
   const [chartData, setChartData] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   // --- Data Fetching ---
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        // Fetch generic oceanographic parameters
-        // Filters: Region + Date Range (defaulting to last 2 years for trend)
-        const regionParam = filters?.region ? `&region=${filters.region}` : '';
-        const url = `/api/oceanographic/parameters?start_date=2022-01-01${regionParam}`;
-        
-        const res = await fetch(url);
-        const json = await res.json();
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setChartData([]); 
 
-        if (json && Array.isArray(json)) {
-          // Process raw backend data into Recharts format
-          const processed = json.map(item => {
-            const dataPoint = {
-              date: item.Data.eventdate || 'Unknown',
-              // Spread all potential keys for easy access
-              ...item.Data 
-            };
-            
-            // Normalize keys (ensure numbers are floats)
-            Object.keys(PARAM_KEY_MAP).forEach(label => {
-              const key = PARAM_KEY_MAP[label];
-              if (dataPoint[key]) {
-                dataPoint[label] = parseFloat(dataPoint[key]);
-              }
-            });
-            
-            return dataPoint;
-          }).sort((a, b) => new Date(a.date) - new Date(b.date));
-
-          setChartData(processed);
-        }
-      } catch (err) {
-        console.error("Failed to fetch environmental data", err);
-      } finally {
-        setLoading(false);
+    const regionParam = filters?.region ? `&region=${filters.region}` : '';
+    const twoYearsAgo = new Date(new Date().setFullYear(new Date().getFullYear() - 2)).toISOString().split('T')[0];
+    const startDateParam = filters?.startDate || twoYearsAgo;
+    
+    // NOTE: This URL must match your Go backend's endpoint
+    const url = `/api/oceanographic/parameters?start_date=${startDateParam}${regionParam}`;
+    
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+      const json = await res.json();
+      
+      if (json && Array.isArray(json)) {
+        // Data is already processed and normalized by the Go backend
+        const sortedData = json.sort((a, b) => new Date(a.date) - new Date(b.date));
+        setChartData(sortedData);
+      } else {
+        setChartData([]);
       }
-    };
-
-    fetchData();
-  }, [filters]); // Re-run when filters change
-
-  const toggleParam = (p) => {
-    if (selectedParams.includes(p)) {
-      setSelectedParams(selectedParams.filter((x) => x !== p));
-    } else if (selectedParams.length < 2) {
-      setSelectedParams([...selectedParams, p]);
+    } catch (err) {
+      console.error("Failed to fetch environmental data:", err);
+    } finally {
+      setLoading(false);
     }
+  }, [filters]); 
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // --- UI Logic ---
+  const toggleVisibility = (p) => {
+    setParamVisibility(prev => ({
+        ...prev,
+        [p]: !prev[p]
+    }));
   };
 
-  return (
-    <div className="space-y-8">
+  const getFilteredData = (paramKey) => {
+    // Filter out data points where the specific parameter is null or undefined
+    return chartData.filter(item => item[paramKey] !== undefined && item[paramKey] !== null);
+  }
 
-      {/* 1. PARAMETER TIME-SERIES */}
-      <div className="flex flex-col lg:flex-row gap-6 h-[600px]">
+  // Finds the parameter's corresponding raw key (e.g., 'pH Level' -> 'pHLevel')
+  const getRawKey = (label) => PARAM_KEY_MAP[label];
 
-        {/* Checklist Sidebar */}
-        <div className="w-full lg:w-1/4 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm overflow-y-auto">
-          <h3 className="font-bold text-slate-900 mb-4">Parameter Checklist</h3>
-          <p className="text-xs text-slate-400 mb-4">Select up to 2 parameters to compare.</p>
-
-          {Object.entries(CATEGORIES).map(([cat, items]) => (
-            <div key={cat} className="mb-4">
-              <h4 className="text-[10px] font-bold text-slate-400 uppercase mb-2 tracking-wider">{cat}</h4>
-              <div className="space-y-1">
-                {items.map((item) => (
-                  <label
-                    key={item}
-                    className={`flex items-center gap-3 cursor-pointer p-2 rounded-lg transition-colors border
-                      ${selectedParams.includes(item) 
-                        ? 'bg-cyan-50 border-cyan-200' 
-                        : 'border-transparent hover:bg-slate-50'}`}
-                  >
-                    <div
-                      className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
-                        selectedParams.includes(item)
-                          ? "bg-cyan-500 border-cyan-500"
-                          : "border-slate-300 bg-white"
-                      }`}
-                    >
-                      {selectedParams.includes(item) && (
-                        <span className="text-white text-[10px] font-bold">✓</span>
-                      )}
-                    </div>
-                    <input
-                      type="checkbox"
-                      className="hidden"
-                      checked={selectedParams.includes(item)}
-                      onChange={() => toggleParam(item)}
-                      disabled={!selectedParams.includes(item) && selectedParams.length >= 2}
-                    />
-                    <span
-                      className={`text-xs font-semibold ${
-                        selectedParams.includes(item) ? "text-cyan-900" : "text-slate-600"
-                      }`}
-                    >
-                      {item}
-                    </span>
-                  </label>
-                ))}
-              </div>
+  // Component to render a single Line Chart
+  const SingleParameterChart = ({ paramLabel, data }) => {
+    if (!data || data.length === 0) {
+        return (
+            <div className="flex items-center justify-center h-full text-sm text-slate-400">
+                No data points recorded for this parameter in the selected period.
             </div>
-          ))}
-        </div>
+        );
+    }
+    
+    const color = PARAM_COLORS[paramLabel];
 
-        {/* Main Chart Area */}
-        <div className="w-full lg:w-3/4 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col relative">
-          <h3 className="text-xl font-bold text-slate-900 mb-1">Environmental Time-Series</h3>
-          <p className="text-xs text-slate-500 mb-6">
-            Comparing: <span className="font-bold text-cyan-600">{selectedParams.join(" vs ")}</span> 
-            {filters?.region && <span> in {filters.region}</span>}
-          </p>
-
-          <div className="flex-1 min-h-[400px] relative">
-            {loading && (
-               <div className="absolute inset-0 flex items-center justify-center bg-white/60 z-10">
-                 <Loader2 className="animate-spin text-cyan-600" size={32} />
-               </div>
-            )}
-            
-            {chartData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                  <XAxis 
+    return (
+        <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={data} margin={{ top: 10, right: 30, left: 20, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                <XAxis 
                     dataKey="date" 
                     tick={{fontSize: 10}} 
                     tickFormatter={(val) => new Date(val).toLocaleDateString(undefined, {month:'short', year:'2-digit'})}
-                  />
-                  <YAxis yAxisId="left" tick={{fontSize: 10}} />
-                  <YAxis yAxisId="right" orientation="right" tick={{fontSize: 10}} />
-                  <Tooltip 
-                    contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
+                />
+                {/* Single Y-Axis per chart */}
+                <YAxis yAxisId="left" tick={{fontSize: 10}} domain={['auto', 'auto']} /> 
+                
+                <Tooltip 
+                    contentStyle={{borderRadius: '8px', border: `1px solid ${color}`, boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
                     labelStyle={{color: '#64748b', fontSize: '12px', marginBottom: '4px'}}
-                  />
-                  <Legend />
-                  {selectedParams.map((p, i) => (
-                    <Line
-                      key={p}
-                      yAxisId={i === 0 ? "left" : "right"}
-                      type="monotone"
-                      dataKey={p}
-                      strokeWidth={3}
-                      stroke={i === 0 ? "#06b6d4" : "#f59e0b"}
-                      dot={false}
-                      activeDot={{r: 6}}
-                      name={p}
-                      animationDuration={1000}
-                    />
-                  ))}
-                </LineChart>
-              </ResponsiveContainer>
-            ) : (
-              !loading && (
-                <div className="flex items-center justify-center h-full text-slate-400">
-                  No data available for the selected region/parameters.
-                </div>
-              )
-            )}
-          </div>
-        </div>
-      </div>
+                />
+                <Legend />
+                
+                <Line
+                    yAxisId="left"
+                    type="monotone"
+                    dataKey={paramLabel}
+                    strokeWidth={3}
+                    stroke={color}
+                    dot={false}
+                    activeDot={{r: 6}}
+                    name={paramLabel}
+                    animationDuration={500}
+                />
+            </LineChart>
+        </ResponsiveContainer>
+    );
+  };
 
-      {/* 2. SECONDARY CHARTS GRID */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+  // --- Main Render ---
+  return (
+    <div className="flex">
         
-        {/* Contaminant Composition (Mock Data) */}
-        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm h-80 flex flex-col">
-          <h4 className="font-bold text-slate-900 mb-2">Contaminant Composition</h4>
-          <p className="text-[10px] text-slate-400 mb-4">Relative abundance of pollutants (Simulated)</p>
-          <div className="flex-grow">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie 
-                  data={MOCK_CONTAMINANTS} 
-                  cx="50%" cy="50%" 
-                  innerRadius={60} 
-                  outerRadius={80} 
-                  paddingAngle={5} 
-                  dataKey="value"
+        {/* Sidebar for Parameter Checklist */}
+        <div 
+            className={`transition-all duration-300 ${sidebarOpen ? 'w-full lg:w-1/4' : 'w-12 lg:w-16'} 
+                       bg-white p-4 rounded-3xl border border-slate-200 shadow-sm overflow-y-auto relative z-10`}
+        >
+            <div className={`flex items-start ${sidebarOpen ? 'justify-between' : 'justify-center'} mb-4`}>
+                {sidebarOpen && <h3 className="font-bold text-slate-900">Parameters</h3>}
+                <button 
+                    onClick={() => setSidebarOpen(!sidebarOpen)}
+                    className="p-1 rounded-full text-slate-600 hover:bg-slate-100 transition-colors"
+                    title={sidebarOpen ? "Collapse" : "Expand"}
                 >
-                  {MOCK_CONTAMINANTS.map((entry, index) => <Cell key={index} fill={entry.color} />)}
-                </Pie>
-                <Tooltip />
-                <Legend verticalAlign="bottom" iconType="circle" wrapperStyle={{fontSize: '10px'}}/>
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
+                    {sidebarOpen ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                </button>
+            </div>
+            
+            {sidebarOpen && (
+                <>
+                <p className="text-xs text-slate-400 mb-4">Select parameters to display charts.</p>
+                {Object.entries(CATEGORIES).map(([cat, items]) => (
+                    <div key={cat} className="mb-4">
+                        <h4 className="text-[10px] font-bold text-slate-400 uppercase mb-2 tracking-wider">{cat}</h4>
+                        <div className="space-y-1">
+                            {items.map((item) => (
+                                <label
+                                    key={item}
+                                    className={`flex items-center gap-3 cursor-pointer p-2 rounded-lg transition-colors border
+                                        ${paramVisibility[item] ? 'bg-indigo-50 border-indigo-200' : 'border-transparent hover:bg-slate-50'}`}
+                                >
+                                    <div
+                                        className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                                            paramVisibility[item] ? "bg-indigo-500 border-indigo-500" : "border-slate-300 bg-white"
+                                        }`}
+                                    >
+                                        {paramVisibility[item] && <span className="text-white text-[10px] font-bold">✓</span>}
+                                    </div>
+                                    <input
+                                        type="checkbox"
+                                        className="hidden"
+                                        checked={paramVisibility[item]}
+                                        onChange={() => toggleVisibility(item)}
+                                    />
+                                    <span className={`text-xs font-semibold ${paramVisibility[item] ? "text-indigo-900" : "text-slate-600"}`}>
+                                        {item}
+                                    </span>
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+                ))}
+                </>
+            )}
         </div>
 
-        {/* HAB Frequency (Mock Data) */}
-        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm h-80 flex flex-col">
-          <h4 className="font-bold text-slate-900 mb-2">Algal Bloom Events</h4>
-          <p className="text-[10px] text-slate-400 mb-4">Recorded Harmful Algal Blooms (HABs) per year</p>
-          <div className="flex-grow">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={MOCK_HAB}>
-                <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="year" tick={{fontSize: 10}} />
-                <YAxis tick={{fontSize: 10}} />
-                <Tooltip cursor={{fill: '#f1f5f9'}} />
-                <Bar dataKey="count" fill="#f43f5e" radius={[4, 4, 0, 0]} name="Events" barSize={40} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+        {/* Main Chart Grid Area */}
+        <div className={`transition-all duration-300 ${sidebarOpen ? 'w-full lg:w-3/4 ml-6' : 'w-full'} space-y-6`}>
+            
+            {/* Conditional Loading State */}
+            {loading ? (
+                <div className="flex items-center justify-center h-full min-h-[500px] bg-white rounded-3xl border border-slate-200 shadow-sm">
+                    <Loader2 className="animate-spin text-indigo-600" size={48} />
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* ITERATE OVER ALL PARAMETERS TO RENDER CHARTS BASED ON VISIBILITY */}
+                    {allParameters.map((paramLabel) => {
+                        if (paramVisibility[paramLabel]) {
+                            const data = getFilteredData(paramLabel);
+                            const rawKey = getRawKey(paramLabel);
+                            
+                            return (
+                                <div 
+                                    key={paramLabel} 
+                                    className="bg-white p-6 rounded-3xl border border-slate-200 shadow-lg h-[350px] flex flex-col"
+                                >
+                                    <h4 className="font-bold text-slate-900 mb-1">{paramLabel}</h4>
+                                    <p className="text-[10px] text-slate-500 mb-4">
+                                        Data Key: **{rawKey}** {filters?.region && <span> | Region: {filters.region}</span>}
+                                    </p>
+                                    
+                                    <div className="flex-grow min-h-0">
+                                        <SingleParameterChart paramLabel={paramLabel} data={data} />
+                                    </div>
+                                </div>
+                            );
+                        }
+                        return null;
+                    })}
+                    
+                    {/* Fallback Message if no charts are visible */}
+                    {Object.values(paramVisibility).every(v => v === false) && (
+                        <div className="md:col-span-2 flex items-center justify-center h-32 bg-white rounded-3xl border border-dashed border-slate-300 text-slate-500">
+                            Select at least one parameter from the sidebar to view its time-series chart.
+                        </div>
+                    )}
+                </div>
+            )}
         </div>
-
-        {/* Richness vs Diversity (Using Real Data if Available, else Placeholder) */}
-        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm h-80 flex flex-col">
-          <h4 className="font-bold text-slate-900 mb-2">Richness vs Diversity</h4>
-          <p className="text-[10px] text-slate-400 mb-4">Species count (S) vs Shannon Index (H')</p>
-          <div className="flex-grow flex items-center justify-center text-xs text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-            [See Biodiversity Tab for Details]
-          </div>
-        </div>
-
-      </div>
     </div>
   );
 };
 
-export default EnvHealthCharts;
+export default MultiParamCharts;
