@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 	"github.com/jackc/pgx/v5"
+	"github.com/agnivade/levenshtein"
 )
 
 var dbPool *pgxpool.Pool
@@ -224,6 +225,8 @@ func main() {
 	http.HandleFunc("/api/blast", handleBlast)
 	http.HandleFunc("/api/analyze-image", handleAnalyzeImage)
 	http.HandleFunc("/api/query/natural-language", handleNaturalLanguageQuery)
+
+	http.HandleFunc("/api/upload/smart", handleSmartUpload)
 
 	log.Println("Server starting on :8080")
 	log.Fatal(http.ListenAndServe(":8080", enableCORS(http.DefaultServeMux)))
@@ -1119,3 +1122,4 @@ func getNCBIResults(rid string) ([]BlastResult, error) {
 
 	return results, nil
 }
+
