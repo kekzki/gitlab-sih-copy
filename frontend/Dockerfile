@@ -7,10 +7,11 @@ WORKDIR /app
 ARG VITE_SUPABASE_URL
 ARG VITE_SUPABASE_ANON_KEY
 
+# 1. Copy package files and install dependencies (Highly cacheable layer)
 COPY package*.json ./
-
 RUN npm install
 
+# 2. Copy all source code (Less cacheable layer)
 COPY . .
 
 # Set environment variables so Vite can see them during the build
@@ -30,7 +31,6 @@ RUN rm /etc/nginx/conf.d/default.conf
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # 3. Copy the built React files from the previous stage
-# Note: Ensure your vite config outputs to 'dist' (default behavior)
 COPY --from=build /app/dist /usr/share/nginx/html
 
 EXPOSE 80

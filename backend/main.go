@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 	"github.com/jackc/pgx/v5"
-	"github.com/agnivade/levenshtein"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 var dbPool *pgxpool.Pool
@@ -221,7 +221,7 @@ func main() {
 	http.HandleFunc("/api/analyze-image", handleAnalyzeImage)
 	http.HandleFunc("/api/query/natural-language", handleNaturalLanguageQuery)
 
-	http.HandleFunc("/api/upload/smart", handleSmartUpload)
+	http.HandleFunc("/api/upload/smart", HandleSmartUpload)
 
 	log.Println("Server starting on :8080")
 	log.Fatal(http.ListenAndServe(":8080", enableCORS(http.DefaultServeMux)))

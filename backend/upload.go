@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
 	"mime/multipart"
 	"net/http"
 	"strings"
@@ -218,7 +217,7 @@ func standardizeData(rows []map[string]interface{}, mapping map[string]string, s
 
 // --- 5. The Handler (Uses dbPool from main.go) ---
 
-func handleSmartUpload(w http.ResponseWriter, r *http.Request) {
+func HandleSmartUpload(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
