@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Upload, X, Check } from "lucide-react";
+import { Upload, X, Check, Loader } from "lucide-react"; // Added Loader icon
 import { useAuth } from "../context/AuthContext";
 import "./UploadDataset.css";
 
@@ -8,6 +8,10 @@ const UploadDataset = () => {
   const [currentView, setCurrentView] = useState("form"); // "form" or "success"
   const [dragActive, setDragActive] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
+  const [isUploading, setIsUploading] = useState(false); // New state for loading
+
+  // Environment variable for Docker/Prod support, defaults to localhost
+  const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8080";
 
   // Form state
   const [formData, setFormData] = useState({
@@ -22,7 +26,7 @@ const UploadDataset = () => {
   const [errors, setErrors] = useState({});
   const [submittedData, setSubmittedData] = useState(null);
 
-  // Generate IDs
+  // Generate IDs (Kept for UI display purposes)
   const generateSubmissionId = () => {
     const date = new Date().toISOString().split("T")[0].replace(/-/g, "");
     const random = Math.floor(Math.random() * 1000)
@@ -74,9 +78,12 @@ const UploadDataset = () => {
       ...formData,
       [name]: type === "checkbox" ? checked : value,
     });
-    // Clear error for this field
     if (errors[name]) {
       setErrors({ ...errors, [name]: "" });
+    }
+    // Clear global submit error if user changes input
+    if (errors.submit) {
+      setErrors({ ...errors, submit: "" });
     }
   };
 
@@ -130,35 +137,73 @@ const UploadDataset = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  // Handle submit
-  const handleSubmit = (e) => {
+  // Handle submit - UPDATED FOR BACKEND INTEGRATION
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!validateForm()) {
       return;
     }
 
-    // Generate IDs
-    const submissionId = generateSubmissionId();
-    const doi = generateDOI();
+    setIsUploading(true);
+    setErrors({}); // Clear previous errors
 
-    // Prepare submission data
-    const submission = {
-      submissionId,
-      doi,
-      fileName: selectedFile.name,
-      fileSize: (selectedFile.size / (1024 * 1024)).toFixed(2),
-      datasetTitle: formData.title,
-      authors: formData.authors.filter((a) => a.trim()),
-      collectionDate: formData.dateOfCollection,
-      keywords: formData.keywords,
-      description: formData.description,
-      isPublic: formData.isPublic,
-      uploadedAt: new Date().toLocaleDateString(),
-    };
+    try {
+      // 1. Prepare FormData for Go Backend
+      const uploadData = new FormData();
+      uploadData.append("file", selectedFile);
+      
+      // Note: Currently the Go backend only reads 'file'. 
+      // If you update Go to read metadata, you can append these fields:
+      // uploadData.append("title", formData.title);
+      // uploadData.append("description", formData.description);
 
-    setSubmittedData(submission);
-    setCurrentView("success");
+      // 2. Send to Go Backend
+      const response = await fetch(`${API_URL}/api/upload/smart`, {
+        method: "POST",
+        body: uploadData,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || "Upload failed");
+      }
+
+      const result = await response.json();
+
+      // 3. Prepare Success Data
+      // We combine the frontend metadata with the backend result
+      const submissionId = generateSubmissionId();
+      const doi = generateDOI();
+
+      const submission = {
+        submissionId,
+        doi,
+        fileName: selectedFile.name,
+        fileSize: (selectedFile.size / (1024 * 1024)).toFixed(2),
+        datasetTitle: formData.title,
+        authors: formData.authors.filter((a) => a.trim()),
+        collectionDate: formData.dateOfCollection,
+        keywords: formData.keywords,
+        description: formData.description,
+        isPublic: formData.isPublic,
+        uploadedAt: new Date().toLocaleDateString(),
+        // Add backend info to the internal state if needed
+        detectedTable: result.detected_table, 
+        rowsProcessed: result.rows_processed
+      };
+
+      setSubmittedData(submission);
+      setCurrentView("success");
+
+    } catch (error) {
+      console.error("Upload Error:", error);
+      setErrors({ 
+        submit: `Server Error: ${error.message}. Is the backend running?` 
+      });
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   // Handle upload another dataset
@@ -187,6 +232,22 @@ const UploadDataset = () => {
           </p>
 
           <form onSubmit={handleSubmit} className="upload-form">
+            
+            {/* Global Error Message */}
+            {errors.submit && (
+              <div style={{ 
+                backgroundColor: '#fee2e2', 
+                border: '1px solid #ef4444', 
+                color: '#b91c1c', 
+                padding: '10px', 
+                borderRadius: '6px',
+                marginBottom: '20px',
+                fontSize: '0.9rem'
+              }}>
+                {errors.submit}
+              </div>
+            )}
+
             {/* File Upload Section */}
             <div className="form-section">
               <h2 className="section-title">Step 1: Select File</h2>
@@ -200,7 +261,7 @@ const UploadDataset = () => {
                 onDragOver={handleDrag}
                 onDrop={handleDrop}
                 onClick={() => window.fileInputRef?.click()}
-                style={{ cursor: "pointer" }}
+                style={{ cursor: isUploading ? "not-allowed" : "pointer" }}
               >
                 {selectedFile ? (
                   <div className="file-selected">
@@ -211,14 +272,16 @@ const UploadDataset = () => {
                         {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={removeFile}
-                      className="remove-file-btn"
-                      title="Remove file"
-                    >
-                      <X size={20} />
-                    </button>
+                    {!isUploading && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); removeFile(); }}
+                        className="remove-file-btn"
+                        title="Remove file"
+                      >
+                        <X size={20} />
+                      </button>
+                    )}
                   </div>
                 ) : (
                   <div className="drag-drop-content">
@@ -227,7 +290,7 @@ const UploadDataset = () => {
                       Drag and drop your file here, or click to select
                     </p>
                     <p className="drag-subtext">
-                      Supported formats: CSV, PDF, XLS, JSON
+                      Supported formats: CSV, JSON
                     </p>
                   </div>
                 )}
@@ -239,7 +302,8 @@ const UploadDataset = () => {
                   type="file"
                   onChange={handleFileSelect}
                   className="file-input"
-                  accept=".csv,.pdf,.xls,.xlsx,.json"
+                  accept=".csv,.json"
+                  disabled={isUploading}
                   onClick={(e) => e.stopPropagation()}
                 />
               </div>
@@ -263,6 +327,7 @@ const UploadDataset = () => {
                   onChange={handleInputChange}
                   placeholder="Enter a descriptive title for your dataset"
                   className={`form-input ${errors.title ? "error" : ""}`}
+                  disabled={isUploading}
                 />
                 {errors.title && (
                   <p className="error-message">{errors.title}</p>
@@ -285,8 +350,9 @@ const UploadDataset = () => {
                         }
                         placeholder="Author name"
                         className="form-input"
+                        disabled={isUploading}
                       />
-                      {formData.authors.length > 1 && (
+                      {formData.authors.length > 1 && !isUploading && (
                         <button
                           type="button"
                           onClick={() => removeAuthor(index)}
@@ -303,6 +369,7 @@ const UploadDataset = () => {
                   type="button"
                   onClick={addAuthor}
                   className="add-author-btn"
+                  disabled={isUploading}
                 >
                   + Add Author
                 </button>
@@ -325,6 +392,7 @@ const UploadDataset = () => {
                   className={`form-input ${
                     errors.dateOfCollection ? "error" : ""
                   }`}
+                  disabled={isUploading}
                 />
                 {errors.dateOfCollection && (
                   <p className="error-message">{errors.dateOfCollection}</p>
@@ -342,6 +410,7 @@ const UploadDataset = () => {
                   onChange={handleInputChange}
                   placeholder="e.g., marine, biodiversity, ocean (comma separated)"
                   className="form-input"
+                  disabled={isUploading}
                 />
               </div>
 
@@ -356,6 +425,7 @@ const UploadDataset = () => {
                   placeholder="Provide a detailed description of your dataset"
                   className="form-textarea"
                   rows="5"
+                  disabled={isUploading}
                 />
               </div>
 
@@ -368,6 +438,7 @@ const UploadDataset = () => {
                     name="isPublic"
                     checked={formData.isPublic}
                     onChange={handleInputChange}
+                    disabled={isUploading}
                   />
                   <label htmlFor="isPublic">Share this dataset publicly</label>
                 </div>
@@ -379,8 +450,20 @@ const UploadDataset = () => {
             </div>
 
             {/* Submit Button */}
-            <button type="submit" className="submit-btn">
-              Submit Dataset
+            <button 
+              type="submit" 
+              className="submit-btn" 
+              disabled={isUploading}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+            >
+              {isUploading ? (
+                <>
+                  <Loader className="animate-spin" size={20} />
+                  Processing Upload...
+                </>
+              ) : (
+                "Submit Dataset"
+              )}
             </button>
           </form>
         </div>
@@ -388,7 +471,7 @@ const UploadDataset = () => {
     );
   }
 
-  // Success View
+  // Success View (Unchanged logic, just renders the submittedData)
   if (currentView === "success" && submittedData) {
     return (
       <div className="upload-dataset-container">
@@ -418,6 +501,15 @@ const UploadDataset = () => {
                     {submittedData.fileSize} MB
                   </span>
                 </div>
+                {/* Optional: Show Backend Stats if available */}
+                {submittedData.detectedTable && (
+                  <div className="detail-row">
+                    <span className="detail-label">Detected Type:</span>
+                    <span className="detail-value" style={{color: 'green'}}>
+                      {submittedData.detectedTable}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Dataset Information */}
