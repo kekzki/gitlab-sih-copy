@@ -1,9 +1,9 @@
 import psycopg2
 
-def taxonomyCardInfo(db_url, species_id):
+def taxonomyCardInfo(species_id, db_url="postgres://user:somepass@localhost:5430/myappdb"):
     try:
         conn = psycopg2.connect(db_url)
-        conn.autocommit = False  # ⛔ IMPORTANT: disable autocommit
+        conn.autocommit = False
         cur = conn.cursor()
         print("✅ Connected to PostgreSQL")
     except Exception as e:
@@ -55,5 +55,53 @@ def taxonomyCardInfo(db_url, species_id):
 # classification (family, order, class), iucn_status, regions
 # Least Concern, Vulnerable, Near Threatened, Endangered, Critically Endangered
 # Andaman and Nicobar, Andhra Pradesh coast, Arabian Sea, Bay of Bengal, Goa coast, Gujarat coast, Indian Ocean, Karnataka coast, Kerala coast, Lakshadweep, Odisha, Tamil Nadu coast, West Bengal, Maharashtra coast
+import psycopg2
 
-def taxonomy_filter2cards_info():
+def taxonomy_filter2cards_info(iucn_filters, region_filters, db_url="postgres://user:somepass@localhost:5430/myappdb"):
+    try:
+        conn = psycopg2.connect(db_url)
+        cur = conn.cursor()
+        print("✅ Connected to PostgreSQL")
+    except Exception as e:
+        print("❌ Database connection failed:", e)
+        return -1
+
+    base_query = "SELECT species_id FROM species_data"
+    where_clauses = []
+    params = []
+
+    # ---------------------------------------------
+    # IUCN FILTERS (inside JSONB)
+    # OR logic → iucn_status IN (...)
+    # ---------------------------------------------
+    if iucn_filters:
+        where_clauses.append("(data->>'iucn_status') = ANY(%s)")
+        params.append(iucn_filters)
+
+    # ---------------------------------------------
+    # REGION FILTERS (inside JSONB reported_regions array)
+    # OR logic → match ANY provided region
+    # ---------------------------------------------
+    if region_filters:
+        where_clauses.append("(data->'reported_regions')::jsonb ?| %s")
+        params.append(region_filters)
+
+    # ---------------------------------------------
+    # Combine filters
+    # BOTH present → AND
+    # ONE present → only that
+    # ---------------------------------------------
+    if where_clauses:
+        final_query = base_query + " WHERE " + " AND ".join(where_clauses)
+    else:
+        final_query = base_query  # no filters → return all rows
+
+    print("📌 Final Query:", final_query)
+    print("📌 Params:", params)
+
+    # Execute
+    cur.execute(final_query, params)
+    rows = cur.fetchall()
+
+    species_ids = [r[0] for r in rows]
+    return species_ids

@@ -4,6 +4,7 @@ import (
     "context"
     "fmt"
     "github.com/jackc/pgx/v5"
+    "strings"
 )
 
 func taxonomyCardInfo(dbURL string, speciesID int) (map[string]interface{}, error) {
@@ -93,6 +94,93 @@ func taxonomyCardInfo(dbURL string, speciesID int) (map[string]interface{}, erro
 
     return result, nil
 }
+
+
+type SpeciesCard struct {
+    SpeciesID      int
+    ScientificName string
+    VernacularName string
+    ImageURL       string
+}
+
+func TaxonomyFilter2CardsInfo(iucnFilters []string, regionFilters []string, dbURL string) ([]SpeciesCard, error) {
+    ctx := context.Background()
+
+    // Connect to PostgreSQL
+    conn, err := pgx.Connect(ctx, dbURL)
+    if err != nil {
+        fmt.Println("❌ Database connection failed:", err)
+        return nil, err
+    }
+    fmt.Println("✅ Connected to PostgreSQL")
+    defer conn.Close(ctx)
+
+    // Base SELECT (always used)
+    baseQuery := `
+        SELECT 
+            species_id,
+            data->>'scientific_name' AS scientific_name,
+            data->>'vernacularName' AS vernacularName,
+            data->'image_urls'->>0 AS image_url
+        FROM species_data
+    `
+
+    whereClauses := []string{}
+    params := []interface{}{}
+
+    // ---------------------------------------------
+    // IUCN FILTERS (JSONB)
+    // ---------------------------------------------
+    if len(iucnFilters) > 0 {
+        whereClauses = append(whereClauses, fmt.Sprintf("(data->>'iucn_status') = ANY($%d)", len(params)+1))
+        params = append(params, iucnFilters)
+    }
+
+    // ---------------------------------------------
+    // REGION FILTERS (JSONB Array)
+    // ---------------------------------------------
+    if len(regionFilters) > 0 {
+        whereClauses = append(whereClauses, fmt.Sprintf("(data->'reported_regions')::jsonb ?| $%d", len(params)+1))
+        params = append(params, regionFilters)
+    }
+
+    // ---------------------------------------------
+    // Build final SQL
+    // ---------------------------------------------
+    finalQuery := baseQuery
+    if len(whereClauses) > 0 {
+        finalQuery += " WHERE " + strings.Join(whereClauses, " AND ")
+    }
+
+    fmt.Println("📌 Final Query:", finalQuery)
+    fmt.Println("📌 Params:", params)
+
+    // ---------------------------------------------
+    // Execute query
+    // ---------------------------------------------
+    rows, err := conn.Query(ctx, finalQuery, params...)
+    if err != nil {
+        return nil, err
+    }
+    defer rows.Close()
+
+    results := []SpeciesCard{}
+
+    for rows.Next() {
+        var card SpeciesCard
+
+        err := rows.Scan(&card.SpeciesID, &card.ScientificName, &card.VernacularName, &card.ImageURL)
+        if err != nil {
+            return nil, err
+        }
+
+        results = append(results, card)
+    }
+
+    return results, nil
+}
+
+
 
 // classification (family, order, class), iucn_status, regions
 
