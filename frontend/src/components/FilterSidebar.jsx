@@ -1,15 +1,9 @@
-import React, { useState, useMemo } from "react";
-import {
-  ChevronDown,
-  ChevronUp,
-  MapPin,
-  Calendar,
-  Shield,
-  Waves,
-} from "lucide-react";
+// src/components/FilterSidebar.jsx
+import React, { useEffect, useMemo, useState } from "react";
+import { ChevronDown, ChevronUp, MapPin, Calendar, Shield, Waves } from "lucide-react";
 import "./FilterSidebar.css";
 
-const FilterSidebar = ({ onFilterChange, allSpecies = [] }) => {
+const FilterSidebar = ({ onFilterChange, allSpecies = [], regionsFromServer = [], currentFilters }) => {
   const [expandedSections, setExpandedSections] = useState({
     classification: true,
     time: true,
@@ -19,70 +13,83 @@ const FilterSidebar = ({ onFilterChange, allSpecies = [] }) => {
     depth: true,
   });
 
-  const [filters, setFilters] = useState({
-    classifications: [],
-    observationPeriod: null,
-    regions: [],
-    conservationStatus: [],
-    dataQuality: [],
-    depthRange: [0, 5000],
-  });
+  const [filters, setFilters] = useState(
+    currentFilters || {
+      classifications: [],
+      observationPeriod: null,
+      regions: [],
+      conservationStatus: [],
+      dataQuality: [],
+      depthRange: [0, 5000],
+    }
+  );
 
-  // Extract unique values from species data
+  useEffect(() => {
+    if (currentFilters) setFilters(currentFilters);
+  }, [currentFilters]);
+
   const uniqueClassifications = useMemo(() => {
-    return [...new Set(allSpecies.map((s) => s.class))];
+    const s = new Set();
+    allSpecies.forEach((sp) => {
+      const d = sp.data || {};
+      if (d.class) s.add(d.class);
+    });
+    return Array.from(s).sort();
   }, [allSpecies]);
 
   const uniqueRegions = useMemo(() => {
-    const regions = new Set();
-    allSpecies.forEach((species) => {
-      species.reportedRegions.forEach((region) => regions.add(region));
+    // prefer server-supplied regions if available, otherwise derive from allSpecies
+    if (Array.isArray(regionsFromServer) && regionsFromServer.length > 0) return regionsFromServer;
+    const s = new Set();
+    allSpecies.forEach((sp) => {
+      const d = sp.data || {};
+      const rr = d.reported_regions || d.reportedRegions;
+      if (Array.isArray(rr)) rr.forEach((r) => r && s.add(r));
+      else if (typeof rr === "string") {
+        try {
+          const parsed = JSON.parse(rr);
+          if (Array.isArray(parsed)) parsed.forEach((r) => r && s.add(r));
+        } catch {
+          rr.split(",").map(t => t.trim()).forEach((r) => r && s.add(r));
+        }
+      }
     });
-    return Array.from(regions).sort();
-  }, [allSpecies]);
+    return Array.from(s).sort();
+  }, [allSpecies, regionsFromServer]);
 
   const uniqueConservationStatus = useMemo(() => {
-    return [...new Set(allSpecies.map((s) => s.iucnStatus))];
+    const s = new Set();
+    allSpecies.forEach((sp) => {
+      const d = sp.data || {};
+      const st = d.iucn_status || d.iucnStatus || d.conservation_status;
+      if (st) s.add(st);
+    });
+    return Array.from(s).sort();
   }, [allSpecies]);
 
   const uniqueDataQuality = useMemo(() => {
-    return [...new Set(allSpecies.map((s) => s.dataQuality))];
+    const s = new Set();
+    allSpecies.forEach((sp) => {
+      const d = sp.data || {};
+      if (d.dataQuality) s.add(d.dataQuality);
+    });
+    return Array.from(s).sort();
   }, [allSpecies]);
 
-  const conservationStatusColors = {
-    "Critically Endangered": "#dc2626",
-    Endangered: "#ea580c",
-    Vulnerable: "#eab308",
-    "Near Threatened": "#f59e0b",
-    "Least Concern": "#16a34a",
-  };
+  const toggleSection = (section) => setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
 
-  const toggleSection = (section) => {
-    setExpandedSections((prev) => ({
-      ...prev,
-      [section]: !prev[section],
-    }));
-  };
-
-  const handleFilterChange = (category, value) => {
-    const newFilters = { ...filters };
-
+  const handleFilterChangeLocal = (category, value) => {
+    const nf = { ...filters };
     if (category === "observationPeriod") {
-      newFilters.observationPeriod =
-        newFilters.observationPeriod === value ? null : value;
+      nf.observationPeriod = nf.observationPeriod === value ? null : value;
     } else if (category === "depthRange") {
-      newFilters.depthRange = value;
-    } else if (Array.isArray(newFilters[category])) {
-      const index = newFilters[category].indexOf(value);
-      if (index > -1) {
-        newFilters[category].splice(index, 1);
-      } else {
-        newFilters[category].push(value);
-      }
+      nf.depthRange = value;
+    } else if (Array.isArray(nf[category])) {
+      const idx = nf[category].indexOf(value);
+      nf[category] = idx > -1 ? [...nf[category].slice(0, idx), ...nf[category].slice(idx + 1)] : [...nf[category], value];
     }
-
-    setFilters(newFilters);
-    if (onFilterChange) onFilterChange(newFilters);
+    setFilters(nf);
+    if (onFilterChange) onFilterChange(nf);
   };
 
   const getActiveFilterCount = () => {
@@ -91,12 +98,12 @@ const FilterSidebar = ({ onFilterChange, allSpecies = [] }) => {
     if (filters.observationPeriod) count++;
     if (filters.regions.length > 0) count++;
     if (filters.conservationStatus.length > 0) count++;
-    if (filters.dataQuality.length > 0) count++;
+    if (filters.dataQuality && filters.dataQuality.length > 0) count++;
     return count;
   };
 
   const clearAllFilters = () => {
-    const resetFilters = {
+    const reset = {
       classifications: [],
       observationPeriod: null,
       regions: [],
@@ -104,8 +111,8 @@ const FilterSidebar = ({ onFilterChange, allSpecies = [] }) => {
       dataQuality: [],
       depthRange: [0, 5000],
     };
-    setFilters(resetFilters);
-    if (onFilterChange) onFilterChange(resetFilters);
+    setFilters(reset);
+    if (onFilterChange) onFilterChange(reset);
   };
 
   const observationPeriodOptions = [
@@ -117,235 +124,126 @@ const FilterSidebar = ({ onFilterChange, allSpecies = [] }) => {
     { value: "allTime", label: "All Time" },
   ];
 
+  const conservationStatusColors = {
+    "Critically Endangered": "#dc2626",
+    Endangered: "#ea580c",
+    Vulnerable: "#eab308",
+    "Near Threatened": "#f59e0b",
+    "Least Concern": "#16a34a",
+  };
+
   return (
-    <div className="filter-sidebar">
+    <aside className="filter-sidebar">
       <div className="filter-header">
         <h3 className="filter-title">
-          Filters{" "}
-          {getActiveFilterCount() > 0 && (
-            <span className="filter-badge">{getActiveFilterCount()}</span>
-          )}
+          Filters {getActiveFilterCount() > 0 && <span className="filter-badge">{getActiveFilterCount()}</span>}
         </h3>
       </div>
 
-      {/* Classification Filter */}
+      {/* Classification */}
       <div className="filter-section">
-        <button
-          className="filter-section-header"
-          onClick={() => toggleSection("classification")}
-        >
+        <button className="filter-section-header" onClick={() => toggleSection("classification")}>
           <span>📊 Classification</span>
-          {expandedSections.classification ? (
-            <ChevronUp size={18} />
-          ) : (
-            <ChevronDown size={18} />
-          )}
+          {expandedSections.classification ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
         </button>
         {expandedSections.classification && (
           <div className="filter-options">
-            {uniqueClassifications.length > 0 ? (
-              uniqueClassifications.map((classification) => (
-                <label key={classification} className="filter-checkbox">
-                  <input
-                    type="checkbox"
-                    checked={filters.classifications.includes(classification)}
-                    onChange={() =>
-                      handleFilterChange("classifications", classification)
-                    }
-                  />
-                  <span>{classification}</span>
-                </label>
-              ))
-            ) : (
-              <p className="no-options">No classifications available</p>
-            )}
+            {uniqueClassifications.length > 0 ? uniqueClassifications.map(c => (
+              <label key={c} className="filter-checkbox">
+                <input type="checkbox" checked={filters.classifications.includes(c)} onChange={() => handleFilterChangeLocal("classifications", c)} />
+                <span>{c}</span>
+              </label>
+            )) : <p className="no-options">No classifications available</p>}
           </div>
         )}
       </div>
 
-      {/* Time Filter */}
+      {/* Observation Period */}
       <div className="filter-section">
-        <button
-          className="filter-section-header"
-          onClick={() => toggleSection("time")}
-        >
-          <span>
-            <Calendar size={16} className="inline-icon" /> Observation Period
-          </span>
-          {expandedSections.time ? (
-            <ChevronUp size={18} />
-          ) : (
-            <ChevronDown size={18} />
-          )}
+        <button className="filter-section-header" onClick={() => toggleSection("time")}>
+          <span><Calendar size={16} className="inline-icon" /> Observation Period</span>
+          {expandedSections.time ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
         </button>
         {expandedSections.time && (
           <div className="filter-options">
-            <div className="time-period-options">
-              {observationPeriodOptions.map((option) => (
-                <label key={option.value} className="filter-checkbox">
-                  <input
-                    type="radio"
-                    name="observationPeriod"
-                    value={option.value}
-                    checked={filters.observationPeriod === option.value}
-                    onChange={() =>
-                      handleFilterChange("observationPeriod", option.value)
-                    }
-                  />
-                  <span>{option.label}</span>
-                </label>
-              ))}
-            </div>
+            {observationPeriodOptions.map(opt => (
+              <label key={opt.value} className="filter-checkbox">
+                <input type="radio" name="observationPeriod" checked={filters.observationPeriod === opt.value} onChange={() => handleFilterChangeLocal("observationPeriod", opt.value)} />
+                <span>{opt.label}</span>
+              </label>
+            ))}
           </div>
         )}
       </div>
 
-      {/* Location Filter */}
+      {/* Regions */}
       <div className="filter-section">
-        <button
-          className="filter-section-header"
-          onClick={() => toggleSection("location")}
-        >
-          <span>
-            <MapPin size={16} className="inline-icon" /> Geographic Region
-          </span>
-          {expandedSections.location ? (
-            <ChevronUp size={18} />
-          ) : (
-            <ChevronDown size={18} />
-          )}
+        <button className="filter-section-header" onClick={() => toggleSection("location")}>
+          <span><MapPin size={16} className="inline-icon" /> Geographic Region</span>
+          {expandedSections.location ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
         </button>
         {expandedSections.location && (
           <div className="filter-options">
-            {uniqueRegions.length > 0 ? (
-              uniqueRegions.map((region) => (
-                <label key={region} className="filter-checkbox">
-                  <input
-                    type="checkbox"
-                    checked={filters.regions.includes(region)}
-                    onChange={() => handleFilterChange("regions", region)}
-                  />
-                  <span>{region}</span>
-                </label>
-              ))
-            ) : (
-              <p className="no-options">No regions available</p>
-            )}
+            {uniqueRegions.length > 0 ? uniqueRegions.map(r => (
+              <label key={r} className="filter-checkbox">
+                <input type="checkbox" checked={filters.regions.includes(r)} onChange={() => handleFilterChangeLocal("regions", r)} />
+                <span>{r}</span>
+              </label>
+            )) : <p className="no-options">No regions available</p>}
           </div>
         )}
       </div>
 
       {/* Conservation Status */}
       <div className="filter-section">
-        <button
-          className="filter-section-header"
-          onClick={() => toggleSection("conservation")}
-        >
-          <span>
-            <Shield size={16} className="inline-icon" /> Conservation Status
-          </span>
-          {expandedSections.conservation ? (
-            <ChevronUp size={18} />
-          ) : (
-            <ChevronDown size={18} />
-          )}
+        <button className="filter-section-header" onClick={() => toggleSection("conservation")}>
+          <span><Shield size={16} className="inline-icon" /> Conservation Status</span>
+          {expandedSections.conservation ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
         </button>
         {expandedSections.conservation && (
           <div className="filter-options">
-            {uniqueConservationStatus.length > 0 ? (
-              uniqueConservationStatus.map((status) => (
-                <label key={status} className="filter-checkbox">
-                  <input
-                    type="checkbox"
-                    checked={filters.conservationStatus.includes(status)}
-                    onChange={() =>
-                      handleFilterChange("conservationStatus", status)
-                    }
-                  />
-                  <span>
-                    <span
-                      className="status-dot"
-                      style={{
-                        backgroundColor:
-                          conservationStatusColors[status] || "#999",
-                      }}
-                    ></span>
-                    {status}
-                  </span>
-                </label>
-              ))
-            ) : (
-              <p className="no-options">No conservation statuses available</p>
-            )}
+            {uniqueConservationStatus.length > 0 ? uniqueConservationStatus.map(s => (
+              <label key={s} className="filter-checkbox">
+                <input type="checkbox" checked={filters.conservationStatus.includes(s)} onChange={() => handleFilterChangeLocal("conservationStatus", s)} />
+                <span>
+                  <span className="status-dot" style={{ backgroundColor: conservationStatusColors[s] || "#999" }}></span>
+                  {s}
+                </span>
+              </label>
+            )) : <p className="no-options">No conservation statuses available</p>}
           </div>
         )}
       </div>
 
       {/* Data Quality */}
       <div className="filter-section">
-        <button
-          className="filter-section-header"
-          onClick={() => toggleSection("quality")}
-        >
+        <button className="filter-section-header" onClick={() => toggleSection("quality")}>
           <span>✓ Data Quality</span>
-          {expandedSections.quality ? (
-            <ChevronUp size={18} />
-          ) : (
-            <ChevronDown size={18} />
-          )}
+          {expandedSections.quality ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
         </button>
         {expandedSections.quality && (
           <div className="filter-options">
-            {uniqueDataQuality.length > 0 ? (
-              uniqueDataQuality.map((quality) => (
-                <label key={quality} className="filter-checkbox">
-                  <input
-                    type="checkbox"
-                    checked={filters.dataQuality.includes(quality)}
-                    onChange={() => handleFilterChange("dataQuality", quality)}
-                  />
-                  <span>{quality}</span>
-                </label>
-              ))
-            ) : (
-              <p className="no-options">No data quality options available</p>
-            )}
+            {uniqueDataQuality.length > 0 ? uniqueDataQuality.map(q => (
+              <label key={q} className="filter-checkbox">
+                <input type="checkbox" checked={filters.dataQuality.includes(q)} onChange={() => handleFilterChangeLocal("dataQuality", q)} />
+                <span>{q}</span>
+              </label>
+            )) : <p className="no-options">No data quality options available</p>}
           </div>
         )}
       </div>
 
-      {/* Depth Range */}
+      {/* Depth */}
       <div className="filter-section">
-        <button
-          className="filter-section-header"
-          onClick={() => toggleSection("depth")}
-        >
-          <span>
-            <Waves size={16} className="inline-icon" /> Habitat Depth
-          </span>
-          {expandedSections.depth ? (
-            <ChevronUp size={18} />
-          ) : (
-            <ChevronDown size={18} />
-          )}
+        <button className="filter-section-header" onClick={() => toggleSection("depth")}>
+          <span><Waves size={16} className="inline-icon" /> Habitat Depth</span>
+          {expandedSections.depth ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
         </button>
         {expandedSections.depth && (
           <div className="filter-options">
             <div className="depth-range">
               <span>0m - 5000m</span>
-              <input
-                type="range"
-                min="0"
-                max="5000"
-                value={filters.depthRange[1]}
-                onChange={(e) =>
-                  handleFilterChange("depthRange", [
-                    0,
-                    parseInt(e.target.value),
-                  ])
-                }
-                className="depth-slider"
-              />
+              <input type="range" min="0" max="5000" value={filters.depthRange[1]} onChange={(e) => handleFilterChangeLocal("depthRange", [0, parseInt(e.target.value, 10)])} className="depth-slider" />
               <span className="depth-value">Max: {filters.depthRange[1]}m</span>
             </div>
           </div>
@@ -353,11 +251,9 @@ const FilterSidebar = ({ onFilterChange, allSpecies = [] }) => {
       </div>
 
       <div className="filter-actions">
-        <button className="clear-filters-btn" onClick={clearAllFilters}>
-          Clear All
-        </button>
+        <button className="clear-filters-btn" onClick={clearAllFilters}>Clear All</button>
       </div>
-    </div>
+    </aside>
   );
 };
 

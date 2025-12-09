@@ -121,22 +121,8 @@ type AIQueryResponse struct {
 
 func main() {
 	// --- 1. CONFIGURE DATABASE CONNECTION ---
-	dbURL := os.Getenv("DATABASE_URL")
-	if dbURL == "" {
-		// Fallback for development
-		dbHost := getEnv("DB_HOST", "localhost")
-		dbPort := getEnv("DB_PORT", "5432")
-		dbUser := getEnv("DB_USER", "postgres")
-		dbPass := os.Getenv("DB_PASSWORD")
-		dbName := getEnv("DB_NAME", "postgres")
+	dbURL := "postgres://user:somepass@localhost:5430/myappdb"
 
-		if dbPass == "" {
-			log.Fatal("FATAL: DATABASE_URL or DB_PASSWORD environment variable must be set")
-		}
-
-		dbURL = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
-			dbUser, dbPass, dbHost, dbPort, dbName)
-	}
 
 	// --- 2. CREATE CONNECTION POOL ---
 	var err error
