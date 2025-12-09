@@ -196,11 +196,6 @@ func main() {
 	fileServer := http.FileServer(http.Dir(imageDir))
 	http.Handle("/batch_results/", http.StripPrefix("/batch_results/", fileServer))
 
-	imageDir := "E:\\otolith_analysis\\batch_results\\"
-	if _, err := os.Stat(imageDir); os.IsNotExist(err) {
-    	log.Fatalf("Image directory not found: %s", imageDir)
-	}
-
 	// --- 5. REGISTER API ROUTES ---
 	http.HandleFunc("/api/species", getSpecies)
 	http.HandleFunc("/api/species/", getSpeciesDetail)
@@ -1122,4 +1117,5 @@ func getNCBIResults(rid string) ([]BlastResult, error) {
 
 	return results, nil
 }
+
 
